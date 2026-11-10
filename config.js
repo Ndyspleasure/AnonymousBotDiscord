@@ -1,6 +1,6 @@
 'use strict';
 const FOOTER = 'Patuhi syarat dan ketentuan kami, pelanggar dapat dikenakan sanksi banned permanen';
-// Semua "data" bot ada di sini (tanpa database). Ubah lalu deploy ulang.
+// Konfigurasi dan teks bot ada di sini. Status chat disimpan di memori dan (opsional) PostgreSQL, lihat src/store.js. Ubah lalu deploy ulang.
 module.exports = {
   brand: { name: 'Anonymous Bot', color: 0x5865f2, hubName: 'Vanillate.ID' },
 
