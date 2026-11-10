@@ -9,6 +9,7 @@ class Matchmaker {
     this.sessions = new Map();  // userId -> { partnerId, lastActivity, buffer[] }
     this.cooldowns = new Map(); // userId -> ts terakhir /mulai
     this.rate = new Map();      // userId -> [timestamps]
+    this.seq = 0;               // id pesan untuk tombol Report
   }
 
   isBanned(id) { return config.bannedUserIds.includes(id); }
@@ -58,18 +59,24 @@ class Matchmaker {
     return true;
   }
 
-  /** Catat pesan di buffer ring kecil (hanya untuk /lapor). */
-  record(id, text) {
+  /** Catat pesan di buffer ring kecil (hanya untuk laporan). Mengembalikan entri (id unik). */
+  record(id, text, media = []) {
     const s = this.sessions.get(id);
-    if (!s) return;
+    if (!s) return null;
     s.lastActivity = this.now();
     this.sessions.get(s.partnerId).lastActivity = s.lastActivity;
-    const entry = { from: id, text, at: s.lastActivity };
+    const entry = { id: ++this.seq, from: id, text, media, at: s.lastActivity };
     for (const uid of [id, s.partnerId]) {
       const buf = this.sessions.get(uid).buffer;
       buf.push(entry);
       if (buf.length > config.limits.reportBufferSize) buf.shift();
     }
+    return entry;
+  }
+
+  /** Entri di buffer chat aktif milik userId (untuk tombol Report). */
+  findEntry(userId, entryId) {
+    return this.sessions.get(userId)?.buffer.find((e) => e.id === entryId) ?? null;
   }
 
   snapshot(id) {

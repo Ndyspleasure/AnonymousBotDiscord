@@ -1,12 +1,17 @@
 'use strict';
 require('dotenv').config();
-const { Client, GatewayIntentBits, Partials, MessageFlags, EmbedBuilder } = require('discord.js');
+const {
+  Client, GatewayIntentBits, Partials, MessageFlags, EmbedBuilder, StickerFormatType,
+} = require('discord.js');
 const config = require('./config');
 const { Matchmaker } = require('./src/matchmaker');
 const { checkMessage } = require('./src/filter');
 const { syncCommands } = require('./src/registerCommands');
+const { sendReportFile } = require('./src/report');
+const { IDS, buildRelay } = require('./src/relay');
 
 const mm = new Matchmaker();
+const COMMANDS = new Set(require('./src/commands').definitions.map((d) => d.name));
 const greeted = new Set(); // user yang sudah dapat panduan (memori saja)
 
 const client = new Client({
@@ -29,41 +34,26 @@ async function endBoth(userId, partnerId, reasonToPartner) {
   if (partnerId && reasonToPartner) await dm(partnerId, { embeds: [say(reasonToPartner)] });
 }
 
-async function sendReport(reporterId, partnerId, buffer) {
-  const url = process.env.REPORT_WEBHOOK_URL;
-  if (!url) return false;
-  const lines = buffer.map((m) => `<${m.from === reporterId ? 'pelapor' : 'terlapor'}> ${m.text}`).join('\n').slice(0, 3500);
-  const body = {
-    embeds: [{
-      title: '🚩 Laporan Anonymous Chat',
-      description: `Pelapor: \`${reporterId}\`\nTerlapor: \`${partnerId}\`\n\n${lines || '(tidak ada pesan)'}`,
-      color: 0xed4245,
-    }],
-  };
-  try {
-    const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
-    return r.ok;
-  } catch { return false; }
-}
-
-async function handleAnon(i) {
+/** Dipakai slash command dan tombol (Next/Stop/Report). `arg` = id pesan untuk Report. */
+async function handleCommand(i, sub = i.commandName, arg = null) {
   const id = i.user.id;
-  const sub = i.options.getSubcommand();
   const reply = (text) => i.reply({ embeds: [say(text)], flags: MessageFlags.Ephemeral });
 
   if (mm.isBanned(id)) return reply('⛔ Kamu tidak dapat menggunakan bot ini.');
 
-  if (sub === 'bantuan') return reply(config.texts.welcome);
+  if (sub === 'help') return reply(config.texts.welcome);
+  if (sub === 'rules') return reply(config.texts.rules);
+  if (sub === 'terms') return reply(config.texts.terms);
 
-  if (sub === 'mulai' || sub === 'lewati') {
-    if (sub === 'lewati') {
+  if (sub === 'start' || sub === 'next') {
+    if (sub === 'next') {
       const p = mm.leave(id);
-      await endBoth(id, p, '👋 Lawan bicaramu mengakhiri chat. Ketik `/anon mulai` untuk cari lagi.');
+      await endBoth(id, p, '👋 Lawan bicaramu mengakhiri chat. Ketik `/start` untuk cari lagi.');
       mm.cooldowns.delete(id);
     }
     const r = mm.join(id);
     if (r.status === 'cooldown') return reply('⏳ Tunggu sebentar sebelum mencari lagi.');
-    if (r.status === 'busy') return reply('Kamu sedang dalam chat/antrean. Pakai `/anon stop` untuk berhenti.');
+    if (r.status === 'busy') return reply('Kamu sedang dalam chat/antrean. Pakai `/stop` untuk berhenti.');
     if (r.status === 'queued') {
       // pastikan bot bisa DM user ini
       const ok = await dm(id, { embeds: [say('🔎 Mencari lawan bicara… Kamu akan diberi tahu di DM ini saat cocok.')] });
@@ -72,9 +62,9 @@ async function handleAnon(i) {
       return reply('🔎 Masuk antrean. Cek DM dari bot ini.');
     }
     // matched
-    const matchMsg = '✅ **Terhubung!** Kirim pesan biasa di DM ini. `/anon lewati` · `/anon stop` · `/anon lapor`';
+    const matchMsg = '✅ **Terhubung!** Kirim pesan biasa di DM ini. `/next` · `/stop` · `/report`';
     const okPartner = await dm(r.partnerId, { embeds: [say(matchMsg)] });
-    if (!okPartner) { mm.leave(id); return reply('Lawan bicara tidak dapat dihubungi. Coba `/anon mulai` lagi.'); }
+    if (!okPartner) { mm.leave(id); return reply('Lawan bicara tidak dapat dihubungi. Coba `/start` lagi.'); }
     await dm(id, { embeds: [say(matchMsg)] });
     greeted.add(id);
     return reply('✅ Terhubung! Lanjutkan di DM bot ini.');
@@ -85,13 +75,21 @@ async function handleAnon(i) {
     const p = mm.leave(id);
     if (!p && !wasQueued) return reply('Kamu tidak sedang dalam chat.');
     await endBoth(id, p, '👋 Lawan bicaramu mengakhiri chat.');
-    return reply('🛑 Selesai. Ketik `/anon mulai` kapan saja.');
+    return reply('🛑 Selesai. Ketik `/start` kapan saja.');
   }
 
-  if (sub === 'lapor') {
+  if (sub === 'report') {
     const p = mm.partnerOf(id);
     if (!p) return reply('Tidak ada chat aktif untuk dilaporkan.');
-    const ok = await sendReport(id, p, mm.snapshot(id));
+    let flaggedId = null;
+    if (arg != null) {
+      const entry = mm.findEntry(id, arg);
+      if (!entry || entry.from !== p) return reply('Pesan ini bukan bagian dari chat yang sedang aktif.');
+      flaggedId = entry.id;
+    }
+    const ok = await sendReportFile(process.env.REPORT_WEBHOOK_URL, {
+      reporterId: id, reportedId: p, buffer: mm.snapshot(id), flaggedId,
+    });
     mm.leave(id);
     await endBoth(id, p, '👋 Chat diakhiri.');
     return reply(ok ? '🚩 Laporan terkirim ke moderator & chat diakhiri. Terima kasih.'
@@ -105,22 +103,70 @@ async function handleDM(msg) {
   const partner = mm.partnerOf(id);
   if (!partner) {
     if (!greeted.has(id)) { greeted.add(id); await msg.channel.send({ embeds: [say(config.texts.welcome)] }).catch(() => {}); }
-    else if (!mm.isQueued(id)) await msg.channel.send({ embeds: [say('Belum ada chat aktif. Ketik `/anon mulai`.')] }).catch(() => {});
+    else if (!mm.isQueued(id)) await msg.channel.send({ embeds: [say('Belum ada chat aktif. Ketik `/start`.')] }).catch(() => {});
     return;
   }
-  if (msg.attachments.size || msg.stickers?.size) { await msg.reply('⚠️ Hanya teks yang diizinkan.').catch(() => {}); return; }
-  const c = checkMessage(msg.content);
-  if (!c.ok) { await msg.reply(`⚠️ ${c.reason}`).catch(() => {}); return; }
-  if (!mm.allowMessage(id)) { await msg.reply('⏳ Terlalu cepat, pelan-pelan ya.').catch(() => {}); return; }
-  const sent = await dm(partner, { content: `💬 **Stranger:** ${c.text}`, allowedMentions: { parse: [] } });
-  if (!sent) { mm.leave(id); await msg.reply('❌ Lawan bicara tidak dapat dihubungi. Chat diakhiri.').catch(() => {}); return; }
-  mm.record(id, c.text);
+  const warn = (t) => msg.reply(`⚠️ ${t}`).catch(() => {});
+  const hasText = Boolean(msg.content?.trim());
+  const hasMedia = msg.attachments.size > 0;
+  const hasSticker = Boolean(msg.stickers?.size);
+  if (!hasText && !hasMedia && !hasSticker) return warn('Pesan kosong.');
+  if (!mm.allowMessage(id)) return warn('⏳ Terlalu cepat, pelan-pelan ya.');
+
+  let text = null;
+  if (hasText) {
+    const c = checkMessage(msg.content);
+    if (!c.ok) return warn(c.reason);
+    text = c.text;
+  }
+
+  // Foto & video (maks 4 file, 8 MB). Nama berkas dibuat aman untuk attachment://.
+  const files = [];
+  const mediaMeta = [];
+  if (hasMedia) {
+    const list = [...msg.attachments.values()];
+    if (list.length > config.limits.maxMediaPerMessage) return warn(`Maksimal ${config.limits.maxMediaPerMessage} file per pesan.`);
+    const bad = list.find((a) => !/^(image|video)\//.test(a.contentType || '') || a.size > config.limits.maxMediaBytes);
+    if (bad) return warn(`Hanya foto/video maks ${Math.floor(config.limits.maxMediaBytes / 1048576)} MB yang diizinkan.`);
+    list.forEach((a, n) => {
+      const ext = (a.name?.match(/\.([a-z0-9]{1,5})$/i)?.[1] || (a.contentType.startsWith('video/') ? 'mp4' : 'png')).toLowerCase();
+      const name = `media${n + 1}.${ext}`;
+      files.push({ attachment: a.url, name });
+      mediaMeta.push({ name, url: a.url });
+    });
+  }
+
+  // Stiker: dikirim sebagai gambar (Lottie tidak didukung).
+  if (hasSticker) {
+    let n = 0;
+    for (const st of msg.stickers.values()) {
+      if (st.format === StickerFormatType.Lottie) return warn('Stiker animasi jenis ini belum didukung.');
+      const ext = st.format === StickerFormatType.GIF ? 'gif' : 'png';
+      const name = `stiker${++n}.${ext}`;
+      files.push({ attachment: st.url, name });
+      mediaMeta.push({ name: `${st.name || 'stiker'} (stiker)`, url: st.url });
+    }
+  }
+
+  // Catat dulu supaya tombol Report tahu pesan mana yang dilaporkan.
+  const entry = mm.record(id, text, mediaMeta);
+  const sent = await dm(partner, buildRelay({ text, files, entryId: entry.id }));
+  if (!sent) { mm.leave(id); return warn('❌ Lawan bicara tidak dapat dihubungi. Chat diakhiri.'); }
   msg.react('✅').catch(() => {});
 }
 
 client.on('interactionCreate', (i) => {
-  if (i.isChatInputCommand() && i.commandName === 'anon') {
-    handleAnon(i).catch((e) => console.error('[anon]', e));
+  if (i.isButton() && i.customId.startsWith('anon:')) {
+    let action = null;
+    let arg = null;
+    if (i.customId === IDS.NEXT) action = 'next';
+    else if (i.customId === IDS.STOP) action = 'stop';
+    else if (i.customId.startsWith(IDS.REPORT)) { action = 'report'; arg = Number(i.customId.slice(IDS.REPORT.length)); }
+    if (action) handleCommand(i, action, arg).catch((e) => console.error(`[btn:${action}]`, e));
+    return;
+  }
+  if (i.isChatInputCommand() && COMMANDS.has(i.commandName)) {
+    handleCommand(i).catch((e) => console.error(`[${i.commandName}]`, e));
   }
 });
 
@@ -137,7 +183,7 @@ client.once('clientReady', () => {
     .catch((e) => console.error('[commands] gagal sinkron:', e.message));
   setInterval(async () => {
     const { queueExpired, sessionsExpired } = mm.sweep();
-    for (const id of queueExpired) await dm(id, { embeds: [say('⌛ Belum ada lawan bicara. Coba lagi dengan `/anon mulai`.')] });
+    for (const id of queueExpired) await dm(id, { embeds: [say('⌛ Belum ada lawan bicara. Coba lagi dengan `/start`.')] });
     for (const [a, b] of sessionsExpired) {
       for (const id of [a, b]) await dm(id, { embeds: [say('💤 Chat berakhir karena sepi.')] });
     }

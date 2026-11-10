@@ -16,3 +16,26 @@ test('netralkan mention', () => {
   assert.ok(!r.text.includes('@everyone'));
   assert.ok(!r.text.includes('<@'));
 });
+
+test('GIF Tenor/Giphy diizinkan, tautan lain dan undangan tetap diblokir', () => {
+  assert.ok(checkMessage('https://tenor.com/view/abc-123').ok);
+  assert.ok(checkMessage('lucu https://media.giphy.com/media/x/giphy.gif').ok);
+  assert.equal(checkMessage('http://tenor.com/view/abc').ok, false);        // bukan https
+  assert.equal(checkMessage('https://tenor.com.evil.com/x').ok, false);     // host palsu
+  assert.equal(checkMessage('https://evil.com/x tenor.com').ok, false);
+  assert.equal(checkMessage('https://discord.gg/abc').ok, false);
+});
+
+test('laporan .txt memuat pelapor, terlapor, dan pesan berlabel', () => {
+  const { buildReportText } = require('../src/report');
+  const t = buildReportText({
+    reporterId: 'A', reportedId: 'B', now: Date.UTC(2026, 0, 2, 3, 4, 5),
+    flaggedId: 2,
+    buffer: [{ id: 1, from: 'A', text: 'halo', at: 0 },
+      { id: 2, from: 'B', text: 'kasar', at: 1000, media: [{ name: 'media1.png', url: 'https://cdn/x.png' }] }],
+  });
+  assert.ok(t.includes('>>> DILAPORKAN >>> [') && t.includes('media: media1.png https://cdn/x.png'));
+  assert.ok(t.includes('Pelapor       : A') && t.includes('Terlapor      : B'));
+  assert.ok(t.includes('PELAPOR : halo') && t.includes('TERLAPOR: kasar'));
+  assert.ok(t.includes('2026-01-02 03:04:05 UTC'));
+});

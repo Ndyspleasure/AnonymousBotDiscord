@@ -2,15 +2,21 @@
 const { SlashCommandBuilder, InteractionContextType, ApplicationIntegrationType } = require('discord.js');
 
 // integration_types user+guild & contexts DM/bot-DM/guild => bisa dipakai tanpa server.
-const anon = new SlashCommandBuilder()
-  .setName('anon')
-  .setDescription('Chat anonim 1-1 lewat DM')
+const make = (name, description) => new SlashCommandBuilder()
+  .setName(name)
+  .setDescription(description)
   .setIntegrationTypes(ApplicationIntegrationType.GuildInstall, ApplicationIntegrationType.UserInstall)
-  .setContexts(InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel)
-  .addSubcommand((s) => s.setName('mulai').setDescription('Cari lawan bicara anonim'))
-  .addSubcommand((s) => s.setName('lewati').setDescription('Akhiri chat ini dan cari lawan baru'))
-  .addSubcommand((s) => s.setName('stop').setDescription('Akhiri chat / keluar antrean'))
-  .addSubcommand((s) => s.setName('lapor').setDescription('Laporkan lawan bicara ke moderator'))
-  .addSubcommand((s) => s.setName('bantuan').setDescription('Panduan penggunaan'));
+  .setContexts(InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel);
 
-module.exports = { definitions: [anon.toJSON()] };
+// Urutan = urutan tampil di daftar command.
+const builders = [
+  make('start', 'Masuk antrean dan dipasangkan dengan orang acak'),
+  make('stop', 'Akhiri chat atau keluar dari antrean'),
+  make('next', 'Akhiri chat ini dan langsung cari lawan baru'),
+  make('report', 'Laporkan lawan bicara (transkrip .txt ke moderator), lalu chat diakhiri'),
+  make('help', 'Tampilkan panduan penggunaan'),
+  make('rules', 'Peraturan penggunaan'),
+  make('terms', 'Syarat dan ketentuan'),
+];
+
+module.exports = { definitions: builders.map((b) => b.toJSON()) };

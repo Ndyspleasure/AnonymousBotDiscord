@@ -39,3 +39,15 @@ test('sweep antrean & sesi idle, buffer laporan terbatas', () => {
   assert.equal(mm.sweep().sessionsExpired.length, 1);
   assert.equal(mm.partnerOf('a'), null);
 });
+
+test('record memberi id unik; findEntry hanya di chat aktif', () => {
+  let t = 1_000_000; const mm = new Matchmaker(() => t);
+  mm.join('a'); mm.join('b');
+  const e1 = mm.record('a', 'halo', [{ name: 'media1.png', url: 'u' }]);
+  const e2 = mm.record('b', 'hai');
+  assert.notEqual(e1.id, e2.id);
+  assert.equal(mm.findEntry('b', e1.id).from, 'a');
+  assert.equal(mm.findEntry('a', e2.id).text, 'hai');
+  mm.leave('a');
+  assert.equal(mm.findEntry('b', e1.id), null, 'hilang saat chat berakhir');
+});

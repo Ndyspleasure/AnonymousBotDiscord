@@ -1,16 +1,30 @@
 'use strict';
 const config = require('../config');
 
-const LINK_RE = /(https?:\/\/|www\.|discord\.gg\/|discord(app)?\.com\/invite)/i;
+const INVITE_RE = /(discord\.gg\/|discord(app)?\.com\/invite)/i;
+const URL_RE = /(?:https?:\/\/|www\.)[^\s]+/gi;
+
+/** Hanya https dan host GIF yang diizinkan (config.gifHosts). */
+function urlAllowed(raw) {
+  try {
+    const u = new URL(raw.startsWith('www.') ? `https://${raw}` : raw);
+    if (u.protocol !== 'https:') return false;
+    return config.gifHosts.some((h) => u.hostname === h || u.hostname.endsWith(`.${h}`));
+  } catch { return false; }
+}
 
 /** Mengembalikan { ok, text, reason }. Teks dinetralkan dari mention. */
 function checkMessage(raw) {
   const text = String(raw || '').trim();
-  if (!text) return { ok: false, reason: 'Hanya pesan teks yang bisa dikirim.' };
+  if (!text) return { ok: false, reason: 'Pesan kosong.' };
   if (text.length > config.limits.maxMessageLength) {
     return { ok: false, reason: `Pesan terlalu panjang (maks ${config.limits.maxMessageLength} karakter).` };
   }
-  if (LINK_RE.test(text)) return { ok: false, reason: 'Tautan tidak diizinkan demi keamanan.' };
+  if (INVITE_RE.test(text)) return { ok: false, reason: 'Undangan server tidak diizinkan.' };
+  const urls = text.match(URL_RE) || [];
+  if (urls.some((u) => !urlAllowed(u))) {
+    return { ok: false, reason: 'Tautan tidak diizinkan demi keamanan (hanya GIF Tenor/Giphy).' };
+  }
   const lower = text.toLowerCase();
   if (config.blockedWords.some((w) => w && lower.includes(w))) {
     return { ok: false, reason: 'Pesan mengandung kata yang diblokir.' };
