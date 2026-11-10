@@ -25,6 +25,7 @@ module.exports = {
   blockedWords: [],
 
   texts: {
+    dmOnly: '🕶️ **Anonymous Bot hanya berfungsi lewat DM**, tidak mendukung server.\nPasang ke akunmu lewat tombol di bawah, lalu buka DM dengan bot dan ketik `/start`.',
     unsupported: 'Silakan kirimkan teks pesan atau media saja.',
     noCustomEmoji: 'Emoji kustom/eksternal tidak didukung. Silakan kirimkan emoji standar biasa.',
     footer: 'Patuhi syarat dan ketentuan kami, pelanggar dapat dikenakan sanksi banned permanen',

@@ -1,11 +1,12 @@
 'use strict';
 const { SlashCommandBuilder, InteractionContextType, ApplicationIntegrationType } = require('discord.js');
 
-// integration_types user+guild & contexts DM/bot-DM/guild => bisa dipakai tanpa server.
+// Khusus User Install: command muncul di mana saja (agar bisa mengarahkan ke DM), tetapi hanya
+// berfungsi di DM dengan bot. Di server/grup bot membalas link instal.
 const make = (name, description) => new SlashCommandBuilder()
   .setName(name)
   .setDescription(description)
-  .setIntegrationTypes(ApplicationIntegrationType.GuildInstall, ApplicationIntegrationType.UserInstall)
+  .setIntegrationTypes(ApplicationIntegrationType.UserInstall)
   .setContexts(InteractionContextType.Guild, InteractionContextType.BotDM, InteractionContextType.PrivateChannel);
 
 // Urutan = urutan tampil di daftar command.

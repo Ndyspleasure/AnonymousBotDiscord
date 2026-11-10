@@ -1,7 +1,7 @@
 'use strict';
 require('dotenv').config();
 const {
-  Client, GatewayIntentBits, Partials, StickerFormatType,
+  Client, GatewayIntentBits, Partials, StickerFormatType, InteractionContextType,
 } = require('discord.js');
 const config = require('./config');
 const { Matchmaker } = require('./src/matchmaker');
@@ -10,7 +10,7 @@ const { syncCommands } = require('./src/registerCommands');
 const { sendReportFile } = require('./src/report');
 const { IDS, buildRelay } = require('./src/relay');
 const { resolveGif } = require('./src/gif');
-const { notice, ephemeral } = require('./src/notice');
+const { notice, ephemeral, installNotice } = require('./src/notice');
 
 const mm = new Matchmaker();
 const COMMANDS = new Set(require('./src/commands').definitions.map((d) => d.name));
@@ -37,9 +37,13 @@ async function endBoth(userId, partnerId, reasonToPartner) {
 /** Dipakai slash command dan tombol (Next/Stop/Report). `arg` = id pesan untuk Report. */
 async function handleCommand(i, sub = i.commandName, arg = null) {
   const id = i.user.id;
-  // Di DM balasan tampil biasa (permanen, seperti informasi). Di channel server tetap ephemeral
-  // supaya tidak membanjiri channel dan tidak membuka bahwa seseorang sedang mencari chat anonim.
-  const reply = (text) => i.reply(i.inGuild() ? ephemeral(notice(text)) : notice(text));
+  // Bot khusus DM: command di server/grup dijawab link instal (ephemeral), tidak diproses.
+  const inBotDm = i.context === InteractionContextType.BotDM || (i.context == null && !i.inGuild());
+  if (!inBotDm) {
+    return i.reply(ephemeral(installNotice(process.env.CLIENT_ID || client.application.id)));
+  }
+  // Balasan tampil biasa (permanen) seperti informasi.
+  const reply = (text) => i.reply(notice(text));
 
   if (mm.isBanned(id)) return reply('⛔ Kamu tidak dapat menggunakan bot ini.');
 
@@ -58,20 +62,14 @@ async function handleCommand(i, sub = i.commandName, arg = null) {
     if (r.status === 'busy') return reply('Kamu sedang dalam chat/antrean. Pakai `/stop` untuk berhenti.');
     if (r.status === 'queued') {
       greeted.add(id);
-      // Di DM cukup satu balasan; dari server kirim notifikasi ke DM lalu balas ephemeral.
-      if (!i.inGuild()) return reply('🔎 Mencari lawan bicara… Kamu akan diberi tahu di DM ini saat cocok.');
-      const ok = await dm(id, notice('🔎 Mencari lawan bicara… Kamu akan diberi tahu di DM ini saat cocok.'));
-      if (!ok) { mm.leave(id); return reply('❌ Bot tidak bisa mengirim DM. Buka profil bot → **Kirim Pesan**, lalu coba lagi.'); }
-      return reply('🔎 Masuk antrean. Cek DM dari bot ini.');
+      return reply('🔎 Mencari lawan bicara… Kamu akan diberi tahu di DM ini saat cocok.');
     }
-    // matched
+    // matched: pasangan diberi tahu lewat DM, kamu lewat balasan ini
     const matchMsg = '✅ **Terhubung!** Kirim pesan biasa di DM ini. `/next` · `/stop` · `/report`';
     const okPartner = await dm(r.partnerId, notice(matchMsg));
     if (!okPartner) { mm.leave(id); return reply('Lawan bicara tidak dapat dihubungi. Coba `/start` lagi.'); }
     greeted.add(id);
-    if (!i.inGuild()) return reply(matchMsg);
-    await dm(id, notice(matchMsg));
-    return reply('✅ Terhubung! Lanjutkan di DM bot ini.');
+    return reply(matchMsg);
   }
 
   if (sub === 'stop') {
@@ -202,12 +200,6 @@ client.once('clientReady', () => {
       for (const id of [a, b]) await dm(id, notice('💤 Chat berakhir karena sepi.'));
     }
   }, 30 * 1000).unref();
-});
-
-// Panduan otomatis saat bot diinstal ke server: kirim ke pemilik server (DM).
-client.on('guildCreate', async (guild) => {
-  const owner = await guild.fetchOwner().catch(() => null);
-  if (owner) await dm(owner.id, notice(config.texts.welcome));
 });
 
 if (require.main === module) {
