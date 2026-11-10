@@ -1,27 +1,32 @@
 'use strict';
 require('dotenv').config();
 const {
-  Client, GatewayIntentBits, Partials, MessageFlags, EmbedBuilder, StickerFormatType,
+  Client, GatewayIntentBits, Partials, StickerFormatType, InteractionContextType,
 } = require('discord.js');
 const config = require('./config');
 const { Matchmaker } = require('./src/matchmaker');
 const { checkMessage } = require('./src/filter');
 const { syncCommands } = require('./src/registerCommands');
-const { sendReportFile } = require('./src/report');
+const { sendTranscriptFile } = require('./src/report');
 const { IDS, buildRelay } = require('./src/relay');
 const { resolveGif } = require('./src/gif');
+const { notice, ephemeral, installNotice } = require('./src/notice');
+const { PgStore, createPool } = require('./src/store');
 
 const mm = new Matchmaker();
+// Transkrip dikirim ke log moderasi setiap chat berakhir. Laporan memakai REPORT_WEBHOOK_URL
+// (cadangan: LOG_WEBHOOK_URL). Tanpa webhook, tidak ada yang dikirim.
+mm.onEnd = (info) => sendTranscriptFile(
+  info.reporterId ? (process.env.REPORT_WEBHOOK_URL || process.env.LOG_WEBHOOK_URL) : process.env.LOG_WEBHOOK_URL,
+  info,
+);
 const COMMANDS = new Set(require('./src/commands').definitions.map((d) => d.name));
-const greeted = new Set(); // user yang sudah dapat panduan (memori saja)
 
 const client = new Client({
   // DM tidak butuh intent privileged (MessageContent) untuk membaca isi pesan.
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.DirectMessages],
   partials: [Partials.Channel, Partials.Message],
 });
-
-const say = (text) => new EmbedBuilder().setColor(config.brand.color).setDescription(text);
 
 async function dm(userId, payload) {
   try {
@@ -32,13 +37,19 @@ async function dm(userId, payload) {
 }
 
 async function endBoth(userId, partnerId, reasonToPartner) {
-  if (partnerId && reasonToPartner) await dm(partnerId, { embeds: [say(reasonToPartner)] });
+  if (partnerId && reasonToPartner) await dm(partnerId, notice(reasonToPartner));
 }
 
 /** Dipakai slash command dan tombol (Next/Stop/Report). `arg` = id pesan untuk Report. */
 async function handleCommand(i, sub = i.commandName, arg = null) {
   const id = i.user.id;
-  const reply = (text) => i.reply({ embeds: [say(text)], flags: MessageFlags.Ephemeral });
+  // Bot khusus DM: command di server/grup dijawab link instal (ephemeral), tidak diproses.
+  const inBotDm = i.context === InteractionContextType.BotDM || (i.context == null && !i.inGuild());
+  if (!inBotDm) {
+    return i.reply(ephemeral(installNotice(process.env.CLIENT_ID || client.application.id)));
+  }
+  // Balasan tampil biasa (permanen) seperti informasi.
+  const reply = (text) => i.reply(notice(text));
 
   if (mm.isBanned(id)) return reply('⛔ Kamu tidak dapat menggunakan bot ini.');
 
@@ -56,19 +67,13 @@ async function handleCommand(i, sub = i.commandName, arg = null) {
     if (r.status === 'cooldown') return reply('⏳ Tunggu sebentar sebelum mencari lagi.');
     if (r.status === 'busy') return reply('Kamu sedang dalam chat/antrean. Pakai `/stop` untuk berhenti.');
     if (r.status === 'queued') {
-      // pastikan bot bisa DM user ini
-      const ok = await dm(id, { embeds: [say('🔎 Mencari lawan bicara… Kamu akan diberi tahu di DM ini saat cocok.')] });
-      if (!ok) { mm.leave(id); return reply('❌ Bot tidak bisa mengirim DM. Buka profil bot → **Kirim Pesan**, lalu coba lagi.'); }
-      greeted.add(id);
-      return reply('🔎 Masuk antrean. Cek DM dari bot ini.');
+      return reply('🔎 Mencari lawan bicara… Kamu akan diberi tahu di DM ini saat cocok.');
     }
-    // matched
+    // matched: pasangan diberi tahu lewat DM, kamu lewat balasan ini
     const matchMsg = '✅ **Terhubung!** Kirim pesan biasa di DM ini. `/next` · `/stop` · `/report`';
-    const okPartner = await dm(r.partnerId, { embeds: [say(matchMsg)] });
-    if (!okPartner) { mm.leave(id); return reply('Lawan bicara tidak dapat dihubungi. Coba `/start` lagi.'); }
-    await dm(id, { embeds: [say(matchMsg)] });
-    greeted.add(id);
-    return reply('✅ Terhubung! Lanjutkan di DM bot ini.');
+    const okPartner = await dm(r.partnerId, notice(matchMsg));
+    if (!okPartner) { mm.leave(id, { reason: 'unreachable' }); return reply('Lawan bicara tidak dapat dihubungi. Coba `/start` lagi.'); }
+    return reply(matchMsg);
   }
 
   if (sub === 'stop') {
@@ -88,10 +93,9 @@ async function handleCommand(i, sub = i.commandName, arg = null) {
       if (!entry || entry.from !== p) return reply('Pesan ini bukan bagian dari chat yang sedang aktif.');
       flaggedId = entry.id;
     }
-    const ok = await sendReportFile(process.env.REPORT_WEBHOOK_URL, {
-      reporterId: id, reportedId: p, buffer: mm.snapshot(id), flaggedId,
-    });
-    mm.leave(id);
+    mm.lastEnd = null;
+    mm.leave(id, { reporterId: id, flaggedId });
+    const ok = (await mm.lastEnd) === true;
     await endBoth(id, p, '👋 Chat diakhiri.');
     return reply(ok ? '🚩 Laporan terkirim ke moderator & chat diakhiri. Terima kasih.'
                     : '🚩 Chat diakhiri. (Kanal laporan belum dikonfigurasi oleh pemilik bot.)');
@@ -103,11 +107,11 @@ async function handleDM(msg) {
   if (mm.isBanned(id)) return;
   const partner = mm.partnerOf(id);
   if (!partner) {
-    if (!greeted.has(id)) { greeted.add(id); await msg.channel.send({ embeds: [say(config.texts.welcome)] }).catch(() => {}); }
-    else if (!mm.isQueued(id)) await msg.channel.send({ embeds: [say('Belum ada chat aktif. Ketik `/start`.')] }).catch(() => {});
+    // Tanpa chat aktif. Setelah bot restart semua orang tampak "baru", jadi jelaskan kemungkinannya.
+    if (!mm.isQueued(id)) await msg.channel.send(notice(config.texts.noChat)).catch(() => {});
     return;
   }
-  const warn = (t) => msg.reply(`⚠️ ${t}`).catch(() => {});
+  const warn = (t) => msg.reply(notice(`⚠️ ${t}`)).catch(() => {});
   const hasText = Boolean(msg.content?.trim());
   const hasMedia = msg.attachments.size > 0;
   const hasSticker = Boolean(msg.stickers?.size);
@@ -162,7 +166,7 @@ async function handleDM(msg) {
   let sent = await dm(partner, buildRelay({ text: relayText, files, mediaUrls, entryId: entry.id }));
   // Bila Discord menolak kartu V2 berisi GIF, kirim ulang sebagai pesan klasik dengan tautannya.
   if (!sent && mediaUrls.length) sent = await dm(partner, buildRelay({ text, entryId: entry.id, classic: true }));
-  if (!sent) { mm.leave(id); return warn('❌ Lawan bicara tidak dapat dihubungi. Chat diakhiri.'); }
+  if (!sent) { mm.leave(id, { reason: 'unreachable' }); return warn('❌ Lawan bicara tidak dapat dihubungi. Chat diakhiri.'); }
   msg.react('✅').catch(() => {});
 }
 
@@ -188,26 +192,71 @@ client.on('messageCreate', (m) => {
 
 client.once('clientReady', () => {
   console.log(`✅ ${client.user.tag} online`);
+  // Chat yang dipulihkan dari database: beri tahu bahwa bot baru menyala (pesan saat bot mati tidak terkirim).
+  if (resumed.users.length) {
+    Promise.allSettled(resumed.users.map((id) => dm(id, notice(config.texts.resumedNotice))));
+  }
   // Pendaftaran command otomatis (tanpa perlu `node deploy-commands.js` manual).
   syncCommands(client)
     .then((r) => console.log(`[commands] ${r === 'updated' ? 'terdaftar ulang' : 'sudah terbaru'}`))
     .catch((e) => console.error('[commands] gagal sinkron:', e.message));
   setInterval(async () => {
     const { queueExpired, sessionsExpired } = mm.sweep();
-    for (const id of queueExpired) await dm(id, { embeds: [say('⌛ Belum ada lawan bicara. Coba lagi dengan `/start`.')] });
+    for (const id of queueExpired) await dm(id, notice('⌛ Belum ada lawan bicara. Coba lagi dengan `/start`.'));
     for (const [a, b] of sessionsExpired) {
-      for (const id of [a, b]) await dm(id, { embeds: [say('💤 Chat berakhir karena sepi.')] });
+      for (const id of [a, b]) await dm(id, notice('💤 Chat berakhir karena sepi.'));
     }
   }, 30 * 1000).unref();
 });
 
-// Panduan otomatis saat bot diinstal ke server: kirim ke pemilik server (DM).
-client.on('guildCreate', async (guild) => {
-  const owner = await guild.fetchOwner().catch(() => null);
-  if (owner) await dm(owner.id, { embeds: [say(config.texts.welcome)] });
-});
+// ─── Shutdown/crash terkendali ──────────────────────────────────────────────
+// Saat dimatikan (SIGTERM/SIGINT dari panel hosting) atau crash yang tertangkap, beri tahu semua
+// pengguna yang sedang chat/antre dan kirim transkrip chat yang masih berjalan ke log.
+// Mati paksa (SIGKILL, kehabisan memori, listrik padam) tidak bisa ditangani.
+let shuttingDown = false;
+async function shutdown(reason, code = 0) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  try {
+    if (mm.store) {
+      // Status chat sudah tersimpan di database: cukup selesaikan penulisan tertunda. Chat dilanjutkan
+      // otomatis saat bot menyala lagi (pengguna diberi tahu di sana).
+      await Promise.race([mm.store.flush(), new Promise((r) => setTimeout(r, 5000))]);
+    } else {
+      const { users, queued, ends } = mm.endAll(reason);
+      const text = reason === 'crash' ? config.texts.crashNotice : config.texts.restartNotice;
+      const work = Promise.allSettled([
+        ...[...users, ...queued].map((id) => dm(id, notice(text))),
+        ...ends,
+      ]);
+      await Promise.race([work, new Promise((r) => setTimeout(r, 8000))]);
+    }
+  } catch { /* abaikan, tetap keluar */ }
+  process.exit(code);
+}
+
+/** Sambungkan PostgreSQL bila DATABASE_URL ada; gagal = lanjut tanpa penyimpanan (hanya memori). */
+async function setupStore() {
+  if (!process.env.DATABASE_URL) { console.log('[store] DATABASE_URL kosong: hanya memori (chat putus saat restart).'); return; }
+  try {
+    const store = new PgStore(createPool());
+    await store.init();
+    const state = await store.load(config.limits.transcriptMaxEntries);
+    mm.store = store;
+    resumed = mm.restore(state);
+    console.log(`[store] terhubung. Dipulihkan: ${state.chats.length} chat, ${state.queue.length} antre.`);
+  } catch (e) {
+    console.error('[store] gagal terhubung, lanjut hanya memori:', e.message);
+  }
+}
+let resumed = { users: [], queued: [] };
 
 if (require.main === module) {
+  process.on('SIGTERM', () => shutdown('restart'));
+  process.on('SIGINT', () => shutdown('restart'));
+  process.on('uncaughtException', (e) => { console.error('[fatal]', e); shutdown('crash', 1); });
+  process.on('unhandledRejection', (e) => { console.error('[fatal]', e); shutdown('crash', 1); });
+
   if (!process.env.DISCORD_TOKEN) throw new Error('DISCORD_TOKEN belum diisi (.env).');
-  client.login(process.env.DISCORD_TOKEN);
+  setupStore().then(() => client.login(process.env.DISCORD_TOKEN));
 }

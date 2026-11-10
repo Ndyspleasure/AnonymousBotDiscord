@@ -26,18 +26,20 @@ test('GIF Tenor/Giphy diizinkan, tautan lain dan undangan tetap diblokir', () =>
   assert.equal(checkMessage('https://discord.gg/abc').ok, false);
 });
 
-test('laporan .txt memuat pelapor, terlapor, dan pesan berlabel', () => {
-  const { buildReportText } = require('../src/report');
-  const t = buildReportText({
-    reporterId: 'A', reportedId: 'B', now: Date.UTC(2026, 0, 2, 3, 4, 5),
-    flaggedId: 2,
-    buffer: [{ id: 1, from: 'A', text: 'halo', at: 0 },
+test('transkrip .txt memuat pengguna, alasan, pesan berlabel, dan penanda laporan', () => {
+  const { buildTranscript } = require('../src/report');
+  const info = {
+    users: ['A', 'B'], startedAt: Date.UTC(2026, 0, 2, 3, 0, 0), endedAt: Date.UTC(2026, 0, 2, 3, 4, 5), reason: 'ended',
+    history: [{ id: 1, from: 'A', text: 'halo', at: 0 },
       { id: 2, from: 'B', text: 'kasar', at: 1000, media: [{ name: 'media1.png', url: 'https://cdn/x.png' }] }],
-  });
-  assert.ok(t.includes('>>> DILAPORKAN >>> [') && t.includes('media: media1.png https://cdn/x.png'));
-  assert.ok(t.includes('Pelapor       : A') && t.includes('Terlapor      : B'));
-  assert.ok(t.includes('PELAPOR : halo') && t.includes('TERLAPOR: kasar'));
-  assert.ok(t.includes('2026-01-02 03:04:05 UTC'));
+  };
+  const t = buildTranscript(info);
+  assert.ok(t.startsWith('TRANSKRIP ANONYMOUS CHAT') && t.includes('USER A  : A') && t.includes('USER B  : B'));
+  assert.ok(t.includes('USER A: halo') && t.includes('USER B: kasar') && t.includes('Chat diakhiri pengguna'));
+  assert.ok(t.includes('media: media1.png https://cdn/x.png'));
+  const r = buildTranscript({ ...info, reason: 'report', reporterId: 'A', flaggedId: 2 });
+  assert.ok(r.startsWith('LAPORAN ANONYMOUS CHAT') && r.includes('USER A (PELAPOR): halo'));
+  assert.ok(r.includes('>>> DILAPORKAN >>> ['));
 });
 
 test('emoji kustom ditolak dengan info emoji standar; emoji standar lolos', () => {

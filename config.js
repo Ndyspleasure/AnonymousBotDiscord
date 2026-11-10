@@ -1,5 +1,6 @@
 'use strict';
-// Semua "data" bot ada di sini (tanpa database). Ubah lalu deploy ulang.
+const FOOTER = 'Patuhi syarat dan ketentuan kami, pelanggar dapat dikenakan sanksi banned permanen';
+// Konfigurasi dan teks bot ada di sini. Status chat disimpan di memori dan (opsional) PostgreSQL, lihat src/store.js. Ubah lalu deploy ulang.
 module.exports = {
   brand: { name: 'Anonymous Bot', color: 0x5865f2, hubName: 'Vanillate.ID' },
 
@@ -10,7 +11,7 @@ module.exports = {
     msgPerWindow: 8,                   // maks pesan ...
     msgWindowMs: 10 * 1000,            // ... per jendela waktu ini
     maxMessageLength: 1000,
-    reportBufferSize: 10,              // pesan terakhir yang ikut dilaporkan
+    transcriptMaxEntries: 500,         // maks pesan per chat yang disimpan di memori untuk transkrip
     maxMediaBytes: 8 * 1024 * 1024,    // maks ukuran gambar/video
     maxMediaPerMessage: 4,
   },
@@ -25,9 +26,14 @@ module.exports = {
   blockedWords: [],
 
   texts: {
+    dmOnly: '🕶️ **Anonymous Bot hanya berfungsi lewat DM**, tidak mendukung server.\nPasang ke akunmu lewat tombol di bawah, lalu buka DM dengan bot dan ketik `/start`.',
+    resumedNotice: '🔄 **Bot baru saja menyala kembali.** Chat kamu **dilanjutkan**. Pesan yang dikirim selama bot mati mungkin tidak sampai, jadi ulangi bila perlu.',
+    restartNotice: '🔄 **Bot sedang restart atau pemeliharaan.** Chat/antrean kamu diakhiri. Tunggu sebentar lalu ketik `/start` untuk mencari lawan bicara lagi.',
+    crashNotice: '⚠️ **Bot mengalami gangguan dan akan menyala ulang.** Chat/antrean kamu diakhiri. Tunggu sebentar lalu ketik `/start` untuk mencari lagi.',
+    noChat: '💤 **Belum ada chat aktif.** Kalau chat tadi terputus, kemungkinan bot baru saja restart. Ketik `/start` untuk mencari lawan bicara baru, atau `/help` untuk panduan.',
     unsupported: 'Silakan kirimkan teks pesan atau media saja.',
     noCustomEmoji: 'Emoji kustom/eksternal tidak didukung. Silakan kirimkan emoji standar biasa.',
-    footer: 'Patuhi syarat dan ketentuan kami, pelanggar dapat dikenakan sanksi banned permanen',
+    footer: FOOTER,
 
     welcome: [
       '👋 **Selamat datang di Anonymous Bot!**',
@@ -42,7 +48,8 @@ module.exports = {
       '**Boleh dikirim**: teks, emoji standar, stiker, GIF, foto, dan video.',
       '',
       'Baca juga `/rules` dan `/terms`.',
-      '🔒 Bot **tidak menyimpan** percakapan. Moderator hanya menerima transkrip bila kamu melaporkan.',
+      '',
+      `-# ${FOOTER}`,
     ].join('\n'),
 
     rules: [
@@ -63,8 +70,8 @@ module.exports = {
       '📄 **Syarat & Ketentuan**',
       '',
       '**1. Penggunaan.** Dengan memakai bot ini kamu menyetujui syarat ini dan [Ketentuan Layanan Discord](https://discord.com/terms), termasuk batas usia minimal Discord.',
-      '**2. Anonimitas.** Bot meneruskan pesan tanpa menampilkan namamu kepada lawan bicara. Anonimitas tidak menjamin kebal dari konsekuensi: moderator dapat melihat ID akun pada laporan.',
-      '**3. Data.** Bot **tidak memakai database**. Antrean dan sesi hanya di memori dan hilang saat bot restart atau chat berakhir. Isi chat tidak disimpan. Saat kamu melaporkan, maksimal 10 pesan terakhir (teks dan tautan sementara ke media) beserta ID pelapor dan terlapor dikirim ke moderator. Bot tidak menyimpan berkas gambar/video.',
+      '**2. Anonimitas.** Bot meneruskan pesan tanpa menampilkan namamu kepada lawan bicara. Anonimitas hanya berlaku antar pengguna: moderator dapat melihat ID akun pada transkrip.',
+      '**3. Data.** Agar chat tidak terputus saat bot restart, status chat yang sedang berjalan (ID akun, riwayat pesan teks, dan tautan sementara ke media) disimpan di database dan **dihapus setelah chat berakhir**. Pada saat itu, transkrip dikirim ke log moderasi dan disimpan di sana untuk keperluan keamanan. Bot sendiri tidak menyimpan berkas gambar/video.',
       '**4. Konten pengguna.** Setiap pengguna bertanggung jawab atas pesan yang dikirimnya. Pengelola bot tidak memeriksa isi chat sebelum diteruskan dan tidak bertanggung jawab atas konten pengguna lain. Konten yang melanggar dapat dilaporkan lewat tombol **Report**.',
       '**5. Sanksi.** Pelanggaran aturan dapat berujung pemblokiran permanen dari bot tanpa pemberitahuan.',
       '**6. Layanan.** Bot disediakan apa adanya tanpa jaminan selalu tersedia. Chat dapat terputus sewaktu-waktu (mis. saat pemeliharaan).',

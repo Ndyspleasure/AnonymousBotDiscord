@@ -1,15 +1,24 @@
 'use strict';
+const { randomUUID } = require('node:crypto');
 const config = require('../config');
 
-/** State murni di memori. Hilang saat restart (disengaja: tanpa penyimpanan). */
+/**
+ * State di memori: antrean, sesi, dan riwayat chat aktif. Tanpa database; hilang saat restart.
+ * Saat sebuah chat berakhir, `onEnd(info)` dipanggil sekali dengan seluruh riwayatnya
+ * (dipakai untuk mengirim transkrip ke log moderasi).
+ */
 class Matchmaker {
-  constructor(now = () => Date.now()) {
+  /** @param {() => number} now  @param {import('./store').PgStore|null} store  penyimpanan opsional (PostgreSQL) */
+  constructor(now = () => Date.now(), store = null) {
     this.now = now;
+    this.store = store;
     this.queue = new Map();     // userId -> joinedAt
-    this.sessions = new Map();  // userId -> { partnerId, lastActivity, buffer[] }
-    this.cooldowns = new Map(); // userId -> ts terakhir /mulai
+    this.sessions = new Map();  // userId -> { partnerId, chat }
+    this.cooldowns = new Map(); // userId -> ts terakhir /start
     this.rate = new Map();      // userId -> [timestamps]
     this.seq = 0;               // id pesan untuk tombol Report
+    this.onEnd = null;          // (info) => Promise|void
+    this.lastEnd = null;        // hasil onEnd terakhir (untuk menunggu pengiriman laporan)
   }
 
   isBanned(id) { return config.bannedUserIds.includes(id); }
@@ -30,22 +39,56 @@ class Matchmaker {
       return { status: 'matched', partnerId: other };
     }
     this.queue.set(id, this.now());
+    this.store?.addQueue(id, this.now());
     return { status: 'queued' };
   }
 
   _pair(a, b) {
     const t = this.now();
-    this.sessions.set(a, { partnerId: b, lastActivity: t, buffer: [] });
-    this.sessions.set(b, { partnerId: a, lastActivity: t, buffer: [] });
+    const chat = { id: randomUUID(), users: [a, b], startedAt: t, lastActivity: t, history: [] };
+    this.sessions.set(a, { partnerId: b, chat });
+    this.sessions.set(b, { partnerId: a, chat });
+    this.store?.removeQueue(b); // b = pengguna yang tadi menunggu di antrean
+    this.store?.saveChat(chat);
   }
 
-  /** Akhiri sesi/antrean. Mengembalikan partnerId bila ada sesi. */
-  leave(id) {
-    this.queue.delete(id);
+  _finish(chat, reason, meta = {}) {
+    for (const u of chat.users) this.sessions.delete(u);
+    let ended = null;
+    if (this.onEnd && chat.history.length) {
+      ended = Promise.resolve(this.onEnd({
+        users: chat.users, startedAt: chat.startedAt, endedAt: this.now(), history: chat.history, reason, ...meta,
+      })).catch(() => false);
+      this.lastEnd = ended;
+    }
+    // Hapus dari database setelah transkrip dikirim (atau langsung bila tidak ada yang dikirim).
+    if (this.store) Promise.resolve(ended).finally(() => this.store.deleteChat(chat.id));
+    return ended;
+  }
+
+  /**
+   * Akhiri SEMUA chat dan antrean (bot dimatikan/restart/crash). Transkrip tiap chat dikirim lewat onEnd.
+   * @returns {{users:string[], queued:string[], ends:Promise[]}} pengguna yang perlu diberi tahu
+   */
+  endAll(reason) {
+    const chats = new Set([...this.sessions.values()].map((s) => s.chat));
+    const users = [...this.sessions.keys()];
+    const ends = [];
+    for (const chat of chats) { const p = this._finish(chat, reason); if (p) ends.push(p); }
+    const queued = [...this.queue.keys()];
+    this.queue.clear();
+    return { users, queued, ends };
+  }
+
+  /**
+   * Akhiri sesi/antrean. Mengembalikan partnerId bila ada sesi.
+   * `meta` (mis. { reporterId, flaggedId }) diteruskan ke onEnd.
+   */
+  leave(id, meta = {}) {
+    if (this.queue.delete(id)) this.store?.removeQueue(id);
     const s = this.sessions.get(id);
     if (!s) return null;
-    this.sessions.delete(id);
-    this.sessions.delete(s.partnerId);
+    this._finish(s.chat, meta.reason || (meta.reporterId ? 'report' : 'ended'), meta);
     return s.partnerId;
   }
 
@@ -59,28 +102,37 @@ class Matchmaker {
     return true;
   }
 
-  /** Catat pesan di buffer ring kecil (hanya untuk laporan). Mengembalikan entri (id unik). */
+  /** Catat pesan di riwayat chat (untuk transkrip & laporan). Mengembalikan entri (id unik). */
   record(id, text, media = []) {
     const s = this.sessions.get(id);
     if (!s) return null;
-    s.lastActivity = this.now();
-    this.sessions.get(s.partnerId).lastActivity = s.lastActivity;
-    const entry = { id: ++this.seq, from: id, text, media, at: s.lastActivity };
-    for (const uid of [id, s.partnerId]) {
-      const buf = this.sessions.get(uid).buffer;
-      buf.push(entry);
-      if (buf.length > config.limits.reportBufferSize) buf.shift();
-    }
+    const { chat } = s;
+    chat.lastActivity = this.now();
+    const entry = { id: ++this.seq, from: id, text, media, at: chat.lastActivity };
+    chat.history.push(entry);
+    if (chat.history.length > config.limits.transcriptMaxEntries) chat.history.shift();
+    this.store?.addHistory(chat, entry);
     return entry;
   }
 
-  /** Entri di buffer chat aktif milik userId (untuk tombol Report). */
+  /** Entri di chat aktif milik userId (untuk tombol Report). */
   findEntry(userId, entryId) {
-    return this.sessions.get(userId)?.buffer.find((e) => e.id === entryId) ?? null;
+    return this.sessions.get(userId)?.chat.history.find((e) => e.id === entryId) ?? null;
   }
 
-  snapshot(id) {
-    return this.sessions.get(id)?.buffer.slice() ?? [];
+  /**
+   * Pulihkan status dari penyimpanan saat bot menyala (sebelum menerima pesan).
+   * @returns {{users:string[], queued:string[]}} pengguna chat aktif & antre yang dipulihkan
+   */
+  restore({ chats = [], queue = [], maxId = 0 } = {}) {
+    for (const c of chats) {
+      const chat = { id: c.id, users: c.users, startedAt: c.startedAt, lastActivity: c.lastActivity, history: c.history || [] };
+      this.sessions.set(c.users[0], { partnerId: c.users[1], chat });
+      this.sessions.set(c.users[1], { partnerId: c.users[0], chat });
+    }
+    for (const q of queue) this.queue.set(q.userId, q.joinedAt);
+    this.seq = Math.max(this.seq, maxId);
+    return { users: chats.flatMap((c) => c.users), queued: queue.map((q) => q.userId) };
   }
 
   /** Bersihkan antrean/sesi kedaluwarsa. Mengembalikan { queueExpired[], sessionsExpired[[a,b]] }. */
@@ -88,22 +140,20 @@ class Matchmaker {
     const t = this.now();
     const queueExpired = [];
     for (const [id, at] of this.queue) {
-      if (t - at > config.limits.queueTimeoutMs) { this.queue.delete(id); queueExpired.push(id); }
+      if (t - at > config.limits.queueTimeoutMs) { this.queue.delete(id); this.store?.removeQueue(id); queueExpired.push(id); }
     }
     const sessionsExpired = [];
     const seen = new Set();
-    for (const [id, s] of this.sessions) {
-      if (seen.has(id)) continue;
-      if (t - s.lastActivity > config.limits.idleTimeoutMs) {
-        seen.add(id); seen.add(s.partnerId);
-        sessionsExpired.push([id, s.partnerId]);
-      }
+    for (const [, s] of this.sessions) {
+      if (seen.has(s.chat)) continue;
+      seen.add(s.chat);
+      if (t - s.chat.lastActivity > config.limits.idleTimeoutMs) sessionsExpired.push(s.chat);
     }
-    for (const [a, b] of sessionsExpired) { this.sessions.delete(a); this.sessions.delete(b); }
+    for (const chat of sessionsExpired) this._finish(chat, 'idle');
     for (const [id, last] of this.cooldowns) {
       if (t - last > 60 * 1000) this.cooldowns.delete(id);
     }
-    return { queueExpired, sessionsExpired };
+    return { queueExpired, sessionsExpired: sessionsExpired.map((c) => c.users) };
   }
 }
 

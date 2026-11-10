@@ -41,3 +41,31 @@ test('relay classic:true memaksa pesan klasik walau ada URL media', () => {
   assert.equal(p.flags, undefined);
   assert.ok(p.content.includes('https://tenor.com/view/x-1'));
 });
+
+test('notice: kartu V2 tanpa embed/content, ephemeral menambah flag', () => {
+  const { notice, ephemeral } = require('../src/notice');
+  const n = notice('⚠️ Halo');
+  assert.ok(n.flags & (1 << 15));
+  assert.equal(n.embeds, undefined); assert.equal(n.content, undefined);
+  assert.ok(flat(n.components).includes('⚠️ Halo'));
+  const e = ephemeral(n);
+  assert.ok(e.flags & (1 << 15) && e.flags & 64, 'V2 + ephemeral');
+});
+
+test('teks panduan/peraturan/syarat muat di batas V2', () => {
+  for (const k of ['welcome', 'rules', 'terms']) assert.ok(config.texts[k].length < 3900, k);
+});
+
+test('installNotice: kartu V2 dengan tombol link User Install', () => {
+  const { installNotice, installUrl } = require('../src/notice');
+  const p = installNotice('123');
+  assert.ok(p.flags & (1 << 15));
+  const j = flat(p.components);
+  assert.ok(j.includes(installUrl('123')) && j.includes('integration_type=1') && j.includes('scope=applications.commands'));
+  assert.ok(j.includes('hanya berfungsi lewat DM'));
+});
+
+test('command hanya User Install', () => {
+  const { definitions } = require('../src/commands');
+  assert.ok(definitions.every((d) => JSON.stringify(d.integration_types) === '[1]'));
+});
