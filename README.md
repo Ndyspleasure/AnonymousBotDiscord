@@ -7,12 +7,22 @@ Bot chat anonim 1-1 lewat **DM**. Tanpa database: konfigurasi di `config.js`, st
 2. **Anonymous Bot** menangani onboarding (panduan di DM) dan seluruh chat.
 
 ## Cara kerja
-- `/anon mulai` → antrean → dipasangkan acak. Pesan biasa di DM bot diteruskan sebagai `💬 Stranger: …`.
-- `/anon lewati` · `/anon stop` · `/anon dewasa` · `/anon lapor` · `/anon bantuan`.
+- `/start` → antrean → dipasangkan acak. Pesan biasa di DM bot diteruskan sebagai `💬 Stranger: …`.
+
+| Command | Fungsi |
+|---|---|
+| `/start` | Masuk antrean dan dipasangkan dengan orang acak |
+| `/stop` | Akhiri chat atau keluar dari antrean |
+| `/next` | Akhiri chat ini dan cari lawan baru |
+| `/report` | Laporkan lawan bicara (transkrip `.txt` ke webhook moderator), chat diakhiri |
+| `/help` | Panduan penggunaan |
+| `/rules` | Peraturan |
+| `/terms` | Syarat dan ketentuan |
+| `/dewasa aktif:True/False` | Mode 18+ untuk gambar dan video |
 - Command bisa dipakai di DM/mana saja (install **User** maupun **Server**).
 - DM tidak butuh intent privileged. Teks, emoji, stiker, dan GIF (Tenor/Giphy) langsung diteruskan; tautan lain dan mention dinetralkan; ada rate limit.
-- **Gambar & video** hanya bila kedua pihak menjalankan `/anon dewasa aktif:True` (menyatakan 18+). Penerima melihat peringatan dan harus menekan **Tampilkan**. Mode 18+ dan media tertunda dihapus saat chat berakhir. Media tidak disimpan dan tidak ikut laporan.
-- `/anon lapor` mengirim ≤10 pesan terakhir ke `REPORT_WEBHOOK_URL` (opsional) lalu dibuang.
+- **Gambar & video** hanya bila kedua pihak menjalankan `/dewasa aktif:True` (menyatakan 18+). Penerima melihat peringatan dan harus menekan **Tampilkan**. Mode 18+ dan media tertunda dihapus saat chat berakhir. Media tidak disimpan dan tidak ikut laporan.
+- `/report` mengirim ≤10 pesan terakhir sebagai berkas `.txt` ke `REPORT_WEBHOOK_URL` (opsional) lalu dibuang.
 
 ## Setup
 ```bash

@@ -6,7 +6,7 @@ module.exports = {
   limits: {
     queueTimeoutMs: 5 * 60 * 1000,     // keluar antrean otomatis
     idleTimeoutMs: 30 * 60 * 1000,     // sesi diakhiri bila sepi
-    startCooldownMs: 5 * 1000,         // jeda antar /anon mulai
+    startCooldownMs: 5 * 1000,         // jeda antar /start
     msgPerWindow: 8,                   // maks pesan ...
     msgWindowMs: 10 * 1000,            // ... per jendela waktu ini
     maxMessageLength: 1000,
@@ -32,14 +32,41 @@ module.exports = {
       'Ngobrol 1-1 dengan orang acak, identitas kalian **tidak** ditampilkan.',
       '',
       '**Cara pakai**',
-      '1. Ketik `/anon mulai` untuk masuk antrean.',
-      '2. Setelah cocok, **kirim pesan biasa di DM ini** — bot meneruskannya.',
-      '3. `/anon lewati` cari lawan baru · `/anon stop` berhenti · `/anon lapor` laporkan.',
+      '1. Ketik `/start` untuk masuk antrean.',
+      '2. Setelah cocok, **kirim pesan biasa di DM ini** dan bot meneruskannya.',
+      '3. `/next` cari lawan baru · `/stop` berhenti · `/report` laporkan.',
       '',
       '**Boleh dikirim**: teks, emoji, stiker, dan GIF (menu GIF Discord).',
-      '**Gambar & video** hanya bila KEDUA pihak mengaktifkan `/anon dewasa` (khusus usia 18+). Penerima harus menekan **Tampilkan** dulu. Mode ini mati otomatis saat chat berakhir.',
-      '**Aturan**: sopan, tanpa spam/SARA/doxxing. Dilarang keras konten yang melibatkan anak di bawah umur. Tautan lain diblokir.',
-      '🔒 Bot **tidak menyimpan** percakapan. Moderator hanya menerima potongan chat bila kamu menekan `/anon lapor`.',
+      '**Gambar & video** hanya bila KEDUA pihak mengaktifkan `/dewasa` (khusus usia 18+). Penerima harus menekan **Tampilkan** dulu. Mode ini mati otomatis saat chat berakhir.',
+      '',
+      'Baca juga `/rules` dan `/terms`.',
+      '🔒 Bot **tidak menyimpan** percakapan. Moderator hanya menerima transkrip bila kamu menekan `/report`.',
+    ].join('\n'),
+
+    rules: [
+      '📜 **Peraturan Anonymous Bot**',
+      '',
+      '1. Bersikap sopan. Dilarang melecehkan, mengancam, atau menghina.',
+      '2. Dilarang konten SARA, ujaran kebencian, dan kekerasan.',
+      '3. **Dilarang keras** konten seksual yang melibatkan anak di bawah umur. Pelanggaran dilaporkan dan diblokir permanen.',
+      '4. Dilarang membagikan data pribadi (milikmu atau orang lain), termasuk meminta identitas lawan bicara.',
+      '5. Dilarang spam, iklan, penipuan, dan tautan selain GIF Tenor/Giphy.',
+      '6. Gambar & video hanya untuk pengguna **18+** yang mengaktifkan `/dewasa`. Dilarang mengirimnya ke orang yang tidak setuju.',
+      '7. Dilarang mencoba mengelabui bot (alt akun untuk menghindari blokir, dsb.).',
+      '',
+      'Merasa tidak nyaman? Gunakan `/next` atau `/report` kapan saja.',
+    ].join('\n'),
+
+    terms: [
+      '📄 **Syarat & Ketentuan**',
+      '',
+      '**1. Penggunaan.** Dengan memakai bot ini kamu menyetujui syarat ini dan [Ketentuan Layanan Discord](https://discord.com/terms). Pengguna minimal berusia sesuai ketentuan Discord. Fitur gambar/video khusus **18+**.',
+      '**2. Anonimitas.** Bot meneruskan pesan tanpa menampilkan namamu kepada lawan bicara. Anonimitas tidak menjamin kebal dari konsekuensi: moderator dapat melihat ID akun pada laporan.',
+      '**3. Data.** Bot **tidak memakai database**. Antrean dan sesi hanya di memori dan hilang saat bot restart atau chat berakhir. Isi chat tidak disimpan. Saat kamu menekan `/report`, maksimal 10 pesan teks terakhir beserta ID pelapor dan terlapor dikirim ke moderator. Gambar/video tidak ikut dilaporkan.',
+      '**4. Konten pengguna.** Setiap pengguna bertanggung jawab atas pesan yang dikirimnya. Pengelola bot tidak memeriksa isi chat dan tidak bertanggung jawab atas konten pengguna lain.',
+      '**5. Sanksi.** Pelanggaran aturan dapat berujung pemblokiran dari bot tanpa pemberitahuan.',
+      '**6. Layanan.** Bot disediakan apa adanya tanpa jaminan selalu tersedia. Chat dapat terputus sewaktu-waktu (mis. saat pemeliharaan).',
+      '**7. Perubahan.** Syarat dapat diperbarui sewaktu-waktu.',
     ].join('\n'),
   },
 };

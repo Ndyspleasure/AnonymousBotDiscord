@@ -9,8 +9,10 @@ const config = require('./config');
 const { Matchmaker } = require('./src/matchmaker');
 const { checkMessage } = require('./src/filter');
 const { syncCommands } = require('./src/registerCommands');
+const { sendReportFile } = require('./src/report');
 
 const mm = new Matchmaker();
+const COMMANDS = new Set(require('./src/commands').definitions.map((d) => d.name));
 const greeted = new Set(); // user yang sudah dapat panduan (memori saja)
 
 const client = new Client({
@@ -33,31 +35,16 @@ async function endBoth(userId, partnerId, reasonToPartner) {
   if (partnerId && reasonToPartner) await dm(partnerId, { embeds: [say(reasonToPartner)] });
 }
 
-async function sendReport(reporterId, partnerId, buffer) {
-  const url = process.env.REPORT_WEBHOOK_URL;
-  if (!url) return false;
-  const lines = buffer.map((m) => `<${m.from === reporterId ? 'pelapor' : 'terlapor'}> ${m.text}`).join('\n').slice(0, 3500);
-  const body = {
-    embeds: [{
-      title: '🚩 Laporan Anonymous Chat',
-      description: `Pelapor: \`${reporterId}\`\nTerlapor: \`${partnerId}\`\n\n${lines || '(tidak ada pesan)'}`,
-      color: 0xed4245,
-    }],
-  };
-  try {
-    const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
-    return r.ok;
-  } catch { return false; }
-}
-
-async function handleAnon(i) {
+async function handleCommand(i) {
   const id = i.user.id;
-  const sub = i.options.getSubcommand();
+  const sub = i.commandName;
   const reply = (text) => i.reply({ embeds: [say(text)], flags: MessageFlags.Ephemeral });
 
   if (mm.isBanned(id)) return reply('⛔ Kamu tidak dapat menggunakan bot ini.');
 
-  if (sub === 'bantuan') return reply(config.texts.welcome);
+  if (sub === 'help') return reply(config.texts.welcome);
+  if (sub === 'rules') return reply(config.texts.rules);
+  if (sub === 'terms') return reply(config.texts.terms);
 
   if (sub === 'dewasa') {
     const on = i.options.getBoolean('aktif', true);
@@ -67,15 +54,15 @@ async function handleAnon(i) {
       : '✅ Mode 18+ dimatikan. Gambar & video tidak akan dikirim atau diterima.');
   }
 
-  if (sub === 'mulai' || sub === 'lewati') {
-    if (sub === 'lewati') {
+  if (sub === 'start' || sub === 'next') {
+    if (sub === 'next') {
       const p = mm.leave(id);
-      await endBoth(id, p, '👋 Lawan bicaramu mengakhiri chat. Ketik `/anon mulai` untuk cari lagi.');
+      await endBoth(id, p, '👋 Lawan bicaramu mengakhiri chat. Ketik `/start` untuk cari lagi.');
       mm.cooldowns.delete(id);
     }
     const r = mm.join(id);
     if (r.status === 'cooldown') return reply('⏳ Tunggu sebentar sebelum mencari lagi.');
-    if (r.status === 'busy') return reply('Kamu sedang dalam chat/antrean. Pakai `/anon stop` untuk berhenti.');
+    if (r.status === 'busy') return reply('Kamu sedang dalam chat/antrean. Pakai `/stop` untuk berhenti.');
     if (r.status === 'queued') {
       // pastikan bot bisa DM user ini
       const ok = await dm(id, { embeds: [say('🔎 Mencari lawan bicara… Kamu akan diberi tahu di DM ini saat cocok.')] });
@@ -84,9 +71,9 @@ async function handleAnon(i) {
       return reply('🔎 Masuk antrean. Cek DM dari bot ini.');
     }
     // matched
-    const matchMsg = '✅ **Terhubung!** Kirim pesan biasa di DM ini. `/anon lewati` · `/anon stop` · `/anon lapor`';
+    const matchMsg = '✅ **Terhubung!** Kirim pesan biasa di DM ini. `/next` · `/stop` · `/report`';
     const okPartner = await dm(r.partnerId, { embeds: [say(matchMsg)] });
-    if (!okPartner) { mm.leave(id); return reply('Lawan bicara tidak dapat dihubungi. Coba `/anon mulai` lagi.'); }
+    if (!okPartner) { mm.leave(id); return reply('Lawan bicara tidak dapat dihubungi. Coba `/start` lagi.'); }
     await dm(id, { embeds: [say(matchMsg)] });
     greeted.add(id);
     return reply('✅ Terhubung! Lanjutkan di DM bot ini.');
@@ -97,13 +84,13 @@ async function handleAnon(i) {
     const p = mm.leave(id);
     if (!p && !wasQueued) return reply('Kamu tidak sedang dalam chat.');
     await endBoth(id, p, '👋 Lawan bicaramu mengakhiri chat.');
-    return reply('🛑 Selesai. Ketik `/anon mulai` kapan saja.');
+    return reply('🛑 Selesai. Ketik `/start` kapan saja.');
   }
 
-  if (sub === 'lapor') {
+  if (sub === 'report') {
     const p = mm.partnerOf(id);
     if (!p) return reply('Tidak ada chat aktif untuk dilaporkan.');
-    const ok = await sendReport(id, p, mm.snapshot(id));
+    const ok = await sendReportFile(process.env.REPORT_WEBHOOK_URL, { reporterId: id, reportedId: p, buffer: mm.snapshot(id) });
     mm.leave(id);
     await endBoth(id, p, '👋 Chat diakhiri.');
     return reply(ok ? '🚩 Laporan terkirim ke moderator & chat diakhiri. Terima kasih.'
@@ -117,7 +104,7 @@ async function handleDM(msg) {
   const partner = mm.partnerOf(id);
   if (!partner) {
     if (!greeted.has(id)) { greeted.add(id); await msg.channel.send({ embeds: [say(config.texts.welcome)] }).catch(() => {}); }
-    else if (!mm.isQueued(id)) await msg.channel.send({ embeds: [say('Belum ada chat aktif. Ketik `/anon mulai`.')] }).catch(() => {});
+    else if (!mm.isQueued(id)) await msg.channel.send({ embeds: [say('Belum ada chat aktif. Ketik `/start`.')] }).catch(() => {});
     return;
   }
   const warn = (t) => msg.reply(`⚠️ ${t}`).catch(() => {});
@@ -141,7 +128,7 @@ async function handleDM(msg) {
     if (list.length > config.limits.maxMediaPerMessage) return warn(`Maksimal ${config.limits.maxMediaPerMessage} file per pesan.`);
     const bad = list.find((a) => !/^(image|video)\//.test(a.contentType || '') || a.size > config.limits.maxMediaBytes);
     if (bad) return warn(`Hanya gambar/video maks ${Math.floor(config.limits.maxMediaBytes / 1048576)} MB yang diizinkan.`);
-    if (!mm.isAdult(id)) return warn('Gambar & video butuh mode 18+. Ketik `/anon dewasa aktif:True` (khusus usia 18+).');
+    if (!mm.isAdult(id)) return warn('Gambar & video butuh mode 18+. Ketik `/dewasa aktif:True` (khusus usia 18+).');
     if (!mm.isAdult(partner)) return warn('Lawan bicaramu belum mengaktifkan mode 18+, jadi media tidak dikirim.');
     mediaFiles = list.map((a) => ({ attachment: a.url, name: `SPOILER_${a.name || 'media'}` }));
   }
@@ -172,7 +159,7 @@ async function handleDM(msg) {
       new ButtonBuilder().setCustomId(`anonmedia:${token}`).setLabel('Tampilkan').setEmoji('🔞').setStyle(ButtonStyle.Danger),
     );
     const sent = await dm(partner, {
-      embeds: [say(`🔞 Lawan bicaramu mengirim **${mediaFiles.length} media** (gambar/video) yang bisa berisi konten dewasa. Tekan **Tampilkan** hanya jika kamu berusia 18+ dan mau melihatnya. Jika tidak nyaman, abaikan lalu pakai \`/anon lewati\` atau \`/anon lapor\`.`)],
+      embeds: [say(`🔞 Lawan bicaramu mengirim **${mediaFiles.length} media** (gambar/video) yang bisa berisi konten dewasa. Tekan **Tampilkan** hanya jika kamu berusia 18+ dan mau melihatnya. Jika tidak nyaman, abaikan lalu pakai \`/next\` atau \`/report\`.`)],
       components: [row],
     });
     if (!sent) { mm.leave(id); return warn('❌ Lawan bicara tidak dapat dihubungi. Chat diakhiri.'); }
@@ -188,7 +175,7 @@ async function handleMediaButton(i) {
   if (!m) return i.reply({ content: '⌛ Media sudah kedaluwarsa atau chat telah berakhir.', flags: MessageFlags.Ephemeral });
   if (!mm.isAdult(i.user.id)) {
     mm.pendingMedia.set(token, m); // kembalikan, belum diaktifkan
-    return i.reply({ content: '🔞 Aktifkan dulu mode 18+ dengan `/anon dewasa aktif:True`, lalu tekan Tampilkan lagi.', flags: MessageFlags.Ephemeral });
+    return i.reply({ content: '🔞 Aktifkan dulu mode 18+ dengan `/dewasa aktif:True`, lalu tekan Tampilkan lagi.', flags: MessageFlags.Ephemeral });
   }
   await i.update({ components: [] }).catch(() => {});
   await i.followUp({ content: '🔞 **Media dari Stranger**', files: m.files }).catch(async () => {
@@ -201,8 +188,8 @@ client.on('interactionCreate', (i) => {
     handleMediaButton(i).catch((e) => console.error('[media]', e));
     return;
   }
-  if (i.isChatInputCommand() && i.commandName === 'anon') {
-    handleAnon(i).catch((e) => console.error('[anon]', e));
+  if (i.isChatInputCommand() && COMMANDS.has(i.commandName)) {
+    handleCommand(i).catch((e) => console.error(`[${i.commandName}]`, e));
   }
 });
 
@@ -219,7 +206,7 @@ client.once('clientReady', () => {
     .catch((e) => console.error('[commands] gagal sinkron:', e.message));
   setInterval(async () => {
     const { queueExpired, sessionsExpired } = mm.sweep();
-    for (const id of queueExpired) await dm(id, { embeds: [say('⌛ Belum ada lawan bicara. Coba lagi dengan `/anon mulai`.')] });
+    for (const id of queueExpired) await dm(id, { embeds: [say('⌛ Belum ada lawan bicara. Coba lagi dengan `/start`.')] });
     for (const [a, b] of sessionsExpired) {
       for (const id of [a, b]) await dm(id, { embeds: [say('💤 Chat berakhir karena sepi.')] });
     }
