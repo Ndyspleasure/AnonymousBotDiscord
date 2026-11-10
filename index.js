@@ -4,6 +4,7 @@ const { Client, GatewayIntentBits, Partials, MessageFlags, EmbedBuilder } = requ
 const config = require('./config');
 const { Matchmaker } = require('./src/matchmaker');
 const { checkMessage } = require('./src/filter');
+const { syncCommands } = require('./src/registerCommands');
 
 const mm = new Matchmaker();
 const greeted = new Set(); // user yang sudah dapat panduan (memori saja)
@@ -130,6 +131,10 @@ client.on('messageCreate', (m) => {
 
 client.once('clientReady', () => {
   console.log(`✅ ${client.user.tag} online`);
+  // Pendaftaran command otomatis (tanpa perlu `node deploy-commands.js` manual).
+  syncCommands(client)
+    .then((r) => console.log(`[commands] ${r === 'updated' ? 'terdaftar ulang' : 'sudah terbaru'}`))
+    .catch((e) => console.error('[commands] gagal sinkron:', e.message));
   setInterval(async () => {
     const { queueExpired, sessionsExpired } = mm.sweep();
     for (const id of queueExpired) await dm(id, { embeds: [say('⌛ Belum ada lawan bicara. Coba lagi dengan `/anon mulai`.')] });
