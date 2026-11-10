@@ -9,6 +9,7 @@ const { checkMessage } = require('./src/filter');
 const { syncCommands } = require('./src/registerCommands');
 const { sendReportFile } = require('./src/report');
 const { IDS, buildRelay } = require('./src/relay');
+const { resolveGif } = require('./src/gif');
 
 const mm = new Matchmaker();
 const COMMANDS = new Set(require('./src/commands').definitions.map((d) => d.name));
@@ -126,8 +127,8 @@ async function handleDM(msg) {
   if (hasMedia) {
     const list = [...msg.attachments.values()];
     if (list.length > config.limits.maxMediaPerMessage) return warn(`Maksimal ${config.limits.maxMediaPerMessage} file per pesan.`);
-    const bad = list.find((a) => !/^(image|video)\//.test(a.contentType || '') || a.size > config.limits.maxMediaBytes);
-    if (bad) return warn(`Hanya foto/video maks ${Math.floor(config.limits.maxMediaBytes / 1048576)} MB yang diizinkan.`);
+    if (list.some((a) => !/^(image|video)\//.test(a.contentType || ''))) return warn(config.texts.unsupported);
+    if (list.some((a) => a.size > config.limits.maxMediaBytes)) return warn(`Ukuran maksimal ${Math.floor(config.limits.maxMediaBytes / 1048576)} MB per file.`);
     list.forEach((a, n) => {
       const ext = (a.name?.match(/\.([a-z0-9]{1,5})$/i)?.[1] || (a.contentType.startsWith('video/') ? 'mp4' : 'png')).toLowerCase();
       const name = `media${n + 1}.${ext}`;
@@ -140,7 +141,7 @@ async function handleDM(msg) {
   if (hasSticker) {
     let n = 0;
     for (const st of msg.stickers.values()) {
-      if (st.format === StickerFormatType.Lottie) return warn('Stiker animasi jenis ini belum didukung.');
+      if (st.format === StickerFormatType.Lottie) return warn(config.texts.unsupported);
       const ext = st.format === StickerFormatType.GIF ? 'gif' : 'png';
       const name = `stiker${++n}.${ext}`;
       files.push({ attachment: st.url, name });
@@ -148,9 +149,19 @@ async function handleDM(msg) {
     }
   }
 
+  // Tautan GIF: jadikan media di kartu V2 bila bisa diselesaikan, kalau tidak pakai pesan klasik.
+  let relayText = text;
+  const mediaUrls = [];
+  if (text && !hasMedia) {
+    const gif = await resolveGif(msg, text);
+    if (gif) { mediaUrls.push(gif.url); relayText = gif.rest || null; mediaMeta.push({ name: 'gif', url: gif.url }); }
+  }
+
   // Catat dulu supaya tombol Report tahu pesan mana yang dilaporkan.
   const entry = mm.record(id, text, mediaMeta);
-  const sent = await dm(partner, buildRelay({ text, files, entryId: entry.id }));
+  let sent = await dm(partner, buildRelay({ text: relayText, files, mediaUrls, entryId: entry.id }));
+  // Bila Discord menolak kartu V2 berisi GIF, kirim ulang sebagai pesan klasik dengan tautannya.
+  if (!sent && mediaUrls.length) sent = await dm(partner, buildRelay({ text, entryId: entry.id, classic: true }));
   if (!sent) { mm.leave(id); return warn('❌ Lawan bicara tidak dapat dihubungi. Chat diakhiri.'); }
   msg.react('✅').catch(() => {});
 }

@@ -1,6 +1,7 @@
 'use strict';
 const config = require('../config');
 
+const CUSTOM_EMOJI_RE = /<a?:\w+:\d+>/;
 const INVITE_RE = /(discord\.gg\/|discord(app)?\.com\/invite)/i;
 const URL_RE = /(?:https?:\/\/|www\.)[^\s]+/gi;
 
@@ -20,10 +21,11 @@ function checkMessage(raw) {
   if (text.length > config.limits.maxMessageLength) {
     return { ok: false, reason: `Pesan terlalu panjang (maks ${config.limits.maxMessageLength} karakter).` };
   }
-  if (INVITE_RE.test(text)) return { ok: false, reason: 'Undangan server tidak diizinkan.' };
+  if (CUSTOM_EMOJI_RE.test(text)) return { ok: false, reason: config.texts.noCustomEmoji };
+  if (INVITE_RE.test(text)) return { ok: false, reason: config.texts.unsupported };
   const urls = text.match(URL_RE) || [];
   if (urls.some((u) => !urlAllowed(u))) {
-    return { ok: false, reason: 'Tautan tidak diizinkan demi keamanan (hanya GIF Tenor/Giphy).' };
+    return { ok: false, reason: config.texts.unsupported };
   }
   const lower = text.toLowerCase();
   if (config.blockedWords.some((w) => w && lower.includes(w))) {

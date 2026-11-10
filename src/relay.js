@@ -20,16 +20,17 @@ const HAS_URL = /https:\/\//i;
 
 /**
  * Susun pesan relay dengan tombol Next/Stop/Report dan footer.
- * @param {{text?:string|null, files?:{attachment:string,name:string}[], entryId:number}} o
- *  `files` = stiker + gambar/video; tampil di galeri. Nama berkas harus aman untuk `attachment://`.
- * Pesan berisi tautan GIF memakai pesan klasik agar tautan tetap tampil sebagai GIF
- * (Components V2 tidak memunculkan pratinjau tautan).
+ * @param {{text?:string|null, files?:{attachment:string,name:string}[], mediaUrls?:string[], entryId:number, classic?:boolean}} o
+ *  `files` = stiker + gambar/video yang diunggah ulang (galeri lewat `attachment://`, nama harus aman).
+ *  `mediaUrls` = URL media langsung (mis. GIF) yang langsung ditaruh di galeri.
+ * Tautan yang tidak bisa diselesaikan jadi media (atau `classic: true`) memakai pesan klasik supaya
+ * tautan tetap tampil sebagai GIF (Components V2 tidak memunculkan pratinjau tautan).
  */
-function buildRelay({ text = null, files = [], entryId }) {
-  const hasMedia = files.length > 0;
+function buildRelay({ text = null, files = [], mediaUrls = [], entryId, classic = false }) {
+  const hasMedia = files.length > 0 || mediaUrls.length > 0;
   const footer = `-# ${config.texts.footer}`;
 
-  if (text && HAS_URL.test(text) && !hasMedia) {
+  if (text && HAS_URL.test(text) && (classic || !hasMedia)) {
     return {
       content: `**Stranger:**\n${text}\n${footer}`,
       components: [actionRow(entryId, false)],
@@ -43,6 +44,7 @@ function buildRelay({ text = null, files = [], entryId }) {
   if (hasMedia) {
     box.addMediaGalleryComponents(new MediaGalleryBuilder().addItems(
       ...files.map((f) => new MediaGalleryItemBuilder().setURL(`attachment://${f.name}`)),
+      ...mediaUrls.map((u) => new MediaGalleryItemBuilder().setURL(u)),
     ));
   }
   box.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small));

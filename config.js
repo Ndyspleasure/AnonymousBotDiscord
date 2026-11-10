@@ -15,8 +15,8 @@ module.exports = {
     maxMediaPerMessage: 4,
   },
 
-  // Tautan yang diizinkan hanya untuk GIF dari menu GIF Discord.
-  gifHosts: ['tenor.com', 'giphy.com'],
+  // Tautan yang diizinkan hanya untuk GIF (menu GIF Discord) dan berkas media Discord.
+  gifHosts: ['tenor.com', 'giphy.com', 'cdn.discordapp.com', 'discordapp.net'],
 
   // ID user yang diblokir permanen (hardcode). Contoh: '123456789012345678'
   bannedUserIds: [],
@@ -25,6 +25,8 @@ module.exports = {
   blockedWords: [],
 
   texts: {
+    unsupported: 'Silakan kirimkan teks pesan atau media saja.',
+    noCustomEmoji: 'Emoji kustom/eksternal tidak didukung. Silakan kirimkan emoji standar biasa.',
     footer: 'Patuhi syarat dan ketentuan kami, pelanggar dapat dikenakan sanksi banned permanen',
 
     welcome: [
@@ -37,7 +39,7 @@ module.exports = {
       '2. Setelah cocok, **kirim pesan biasa di DM ini** dan bot meneruskannya.',
       '3. Tiap pesan punya tombol **Next** (cari lawan baru), **Stop** (berhenti), dan **Report** (laporkan pesan itu).',
       '',
-      '**Boleh dikirim**: teks, emoji, stiker, GIF, foto, dan video.',
+      '**Boleh dikirim**: teks, emoji standar, stiker, GIF, foto, dan video.',
       '',
       'Baca juga `/rules` dan `/terms`.',
       '🔒 Bot **tidak menyimpan** percakapan. Moderator hanya menerima transkrip bila kamu melaporkan.',
@@ -51,7 +53,7 @@ module.exports = {
       '3. **Dilarang keras** konten seksual yang melibatkan anak di bawah umur. Pelanggaran dilaporkan dan diblokir permanen.',
       '4. Dilarang mengirim foto/video seksual eksplisit, kekerasan ekstrem (gore), atau konten yang tidak diminta lawan bicara.',
       '5. Dilarang membagikan data pribadi (milikmu atau orang lain), termasuk meminta identitas lawan bicara.',
-      '6. Dilarang spam, iklan, penipuan, dan tautan selain GIF Tenor/Giphy.',
+      '6. Dilarang spam, iklan, penipuan, dan tautan selain GIF.',
       '7. Dilarang mencoba mengelabui bot (alt akun untuk menghindari blokir, dsb.).',
       '',
       'Merasa tidak nyaman? Tekan **Next** atau **Report** kapan saja.',
