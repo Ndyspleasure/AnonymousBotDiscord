@@ -7,12 +7,18 @@ const config = require('./config');
 const { Matchmaker } = require('./src/matchmaker');
 const { checkMessage } = require('./src/filter');
 const { syncCommands } = require('./src/registerCommands');
-const { sendReportFile } = require('./src/report');
+const { sendTranscriptFile } = require('./src/report');
 const { IDS, buildRelay } = require('./src/relay');
 const { resolveGif } = require('./src/gif');
 const { notice, ephemeral, installNotice } = require('./src/notice');
 
 const mm = new Matchmaker();
+// Transkrip dikirim ke log moderasi setiap chat berakhir. Laporan memakai REPORT_WEBHOOK_URL
+// (cadangan: LOG_WEBHOOK_URL). Tanpa webhook, tidak ada yang dikirim.
+mm.onEnd = (info) => sendTranscriptFile(
+  info.reporterId ? (process.env.REPORT_WEBHOOK_URL || process.env.LOG_WEBHOOK_URL) : process.env.LOG_WEBHOOK_URL,
+  info,
+);
 const COMMANDS = new Set(require('./src/commands').definitions.map((d) => d.name));
 const greeted = new Set(); // user yang sudah dapat panduan (memori saja)
 
@@ -67,7 +73,7 @@ async function handleCommand(i, sub = i.commandName, arg = null) {
     // matched: pasangan diberi tahu lewat DM, kamu lewat balasan ini
     const matchMsg = '✅ **Terhubung!** Kirim pesan biasa di DM ini. `/next` · `/stop` · `/report`';
     const okPartner = await dm(r.partnerId, notice(matchMsg));
-    if (!okPartner) { mm.leave(id); return reply('Lawan bicara tidak dapat dihubungi. Coba `/start` lagi.'); }
+    if (!okPartner) { mm.leave(id, { reason: 'unreachable' }); return reply('Lawan bicara tidak dapat dihubungi. Coba `/start` lagi.'); }
     greeted.add(id);
     return reply(matchMsg);
   }
@@ -89,10 +95,9 @@ async function handleCommand(i, sub = i.commandName, arg = null) {
       if (!entry || entry.from !== p) return reply('Pesan ini bukan bagian dari chat yang sedang aktif.');
       flaggedId = entry.id;
     }
-    const ok = await sendReportFile(process.env.REPORT_WEBHOOK_URL, {
-      reporterId: id, reportedId: p, buffer: mm.snapshot(id), flaggedId,
-    });
-    mm.leave(id);
+    mm.lastEnd = null;
+    mm.leave(id, { reporterId: id, flaggedId });
+    const ok = (await mm.lastEnd) === true;
     await endBoth(id, p, '👋 Chat diakhiri.');
     return reply(ok ? '🚩 Laporan terkirim ke moderator & chat diakhiri. Terima kasih.'
                     : '🚩 Chat diakhiri. (Kanal laporan belum dikonfigurasi oleh pemilik bot.)');
@@ -163,7 +168,7 @@ async function handleDM(msg) {
   let sent = await dm(partner, buildRelay({ text: relayText, files, mediaUrls, entryId: entry.id }));
   // Bila Discord menolak kartu V2 berisi GIF, kirim ulang sebagai pesan klasik dengan tautannya.
   if (!sent && mediaUrls.length) sent = await dm(partner, buildRelay({ text, entryId: entry.id, classic: true }));
-  if (!sent) { mm.leave(id); return warn('❌ Lawan bicara tidak dapat dihubungi. Chat diakhiri.'); }
+  if (!sent) { mm.leave(id, { reason: 'unreachable' }); return warn('❌ Lawan bicara tidak dapat dihubungi. Chat diakhiri.'); }
   msg.react('✅').catch(() => {});
 }
 

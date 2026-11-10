@@ -10,7 +10,7 @@ module.exports = {
     msgPerWindow: 8,                   // maks pesan ...
     msgWindowMs: 10 * 1000,            // ... per jendela waktu ini
     maxMessageLength: 1000,
-    reportBufferSize: 10,              // pesan terakhir yang ikut dilaporkan
+    transcriptMaxEntries: 500,         // maks pesan per chat yang disimpan di memori untuk transkrip
     maxMediaBytes: 8 * 1024 * 1024,    // maks ukuran gambar/video
     maxMediaPerMessage: 4,
   },
@@ -43,7 +43,7 @@ module.exports = {
       '**Boleh dikirim**: teks, emoji standar, stiker, GIF, foto, dan video.',
       '',
       'Baca juga `/rules` dan `/terms`.',
-      '🔒 Bot **tidak menyimpan** percakapan. Moderator hanya menerima transkrip bila kamu melaporkan.',
+      '🛡️ Demi keamanan, percakapan dicatat dan dikirim ke log moderasi setelah chat berakhir.',
     ].join('\n'),
 
     rules: [
@@ -64,8 +64,8 @@ module.exports = {
       '📄 **Syarat & Ketentuan**',
       '',
       '**1. Penggunaan.** Dengan memakai bot ini kamu menyetujui syarat ini dan [Ketentuan Layanan Discord](https://discord.com/terms), termasuk batas usia minimal Discord.',
-      '**2. Anonimitas.** Bot meneruskan pesan tanpa menampilkan namamu kepada lawan bicara. Anonimitas tidak menjamin kebal dari konsekuensi: moderator dapat melihat ID akun pada laporan.',
-      '**3. Data.** Bot **tidak memakai database**. Antrean dan sesi hanya di memori dan hilang saat bot restart atau chat berakhir. Isi chat tidak disimpan. Saat kamu melaporkan, maksimal 10 pesan terakhir (teks dan tautan sementara ke media) beserta ID pelapor dan terlapor dikirim ke moderator. Bot tidak menyimpan berkas gambar/video.',
+      '**2. Anonimitas.** Bot meneruskan pesan tanpa menampilkan namamu kepada lawan bicara. Anonimitas hanya berlaku antar pengguna: moderator dapat melihat ID akun pada transkrip.',
+      '**3. Data.** Bot **tidak memakai database**. Selama chat berlangsung, riwayat pesan disimpan sementara di memori. Setelah chat berakhir (kamu atau lawan bicara menghentikan, melaporkan, atau chat sepi), transkrip teks beserta ID akun dan tautan sementara ke media dikirim ke log moderasi dan disimpan di sana untuk keperluan keamanan. Bot sendiri tidak menyimpan berkas gambar/video.',
       '**4. Konten pengguna.** Setiap pengguna bertanggung jawab atas pesan yang dikirimnya. Pengelola bot tidak memeriksa isi chat sebelum diteruskan dan tidak bertanggung jawab atas konten pengguna lain. Konten yang melanggar dapat dilaporkan lewat tombol **Report**.',
       '**5. Sanksi.** Pelanggaran aturan dapat berujung pemblokiran permanen dari bot tanpa pemberitahuan.',
       '**6. Layanan.** Bot disediakan apa adanya tanpa jaminan selalu tersedia. Chat dapat terputus sewaktu-waktu (mis. saat pemeliharaan).',
