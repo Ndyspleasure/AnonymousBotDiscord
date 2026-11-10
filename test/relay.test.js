@@ -41,3 +41,17 @@ test('relay classic:true memaksa pesan klasik walau ada URL media', () => {
   assert.equal(p.flags, undefined);
   assert.ok(p.content.includes('https://tenor.com/view/x-1'));
 });
+
+test('notice: kartu V2 tanpa embed/content, ephemeral menambah flag', () => {
+  const { notice, ephemeral } = require('../src/notice');
+  const n = notice('⚠️ Halo');
+  assert.ok(n.flags & (1 << 15));
+  assert.equal(n.embeds, undefined); assert.equal(n.content, undefined);
+  assert.ok(flat(n.components).includes('⚠️ Halo'));
+  const e = ephemeral(n);
+  assert.ok(e.flags & (1 << 15) && e.flags & 64, 'V2 + ephemeral');
+});
+
+test('teks panduan/peraturan/syarat muat di batas V2', () => {
+  for (const k of ['welcome', 'rules', 'terms']) assert.ok(config.texts[k].length < 3900, k);
+});

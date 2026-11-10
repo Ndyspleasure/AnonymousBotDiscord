@@ -1,7 +1,7 @@
 'use strict';
 require('dotenv').config();
 const {
-  Client, GatewayIntentBits, Partials, MessageFlags, EmbedBuilder, StickerFormatType,
+  Client, GatewayIntentBits, Partials, StickerFormatType,
 } = require('discord.js');
 const config = require('./config');
 const { Matchmaker } = require('./src/matchmaker');
@@ -10,6 +10,7 @@ const { syncCommands } = require('./src/registerCommands');
 const { sendReportFile } = require('./src/report');
 const { IDS, buildRelay } = require('./src/relay');
 const { resolveGif } = require('./src/gif');
+const { notice, ephemeral } = require('./src/notice');
 
 const mm = new Matchmaker();
 const COMMANDS = new Set(require('./src/commands').definitions.map((d) => d.name));
@@ -21,8 +22,6 @@ const client = new Client({
   partials: [Partials.Channel, Partials.Message],
 });
 
-const say = (text) => new EmbedBuilder().setColor(config.brand.color).setDescription(text);
-
 async function dm(userId, payload) {
   try {
     const user = await client.users.fetch(userId);
@@ -32,13 +31,13 @@ async function dm(userId, payload) {
 }
 
 async function endBoth(userId, partnerId, reasonToPartner) {
-  if (partnerId && reasonToPartner) await dm(partnerId, { embeds: [say(reasonToPartner)] });
+  if (partnerId && reasonToPartner) await dm(partnerId, notice(reasonToPartner));
 }
 
 /** Dipakai slash command dan tombol (Next/Stop/Report). `arg` = id pesan untuk Report. */
 async function handleCommand(i, sub = i.commandName, arg = null) {
   const id = i.user.id;
-  const reply = (text) => i.reply({ embeds: [say(text)], flags: MessageFlags.Ephemeral });
+  const reply = (text) => i.reply(ephemeral(notice(text)));
 
   if (mm.isBanned(id)) return reply('⛔ Kamu tidak dapat menggunakan bot ini.');
 
@@ -57,16 +56,16 @@ async function handleCommand(i, sub = i.commandName, arg = null) {
     if (r.status === 'busy') return reply('Kamu sedang dalam chat/antrean. Pakai `/stop` untuk berhenti.');
     if (r.status === 'queued') {
       // pastikan bot bisa DM user ini
-      const ok = await dm(id, { embeds: [say('🔎 Mencari lawan bicara… Kamu akan diberi tahu di DM ini saat cocok.')] });
+      const ok = await dm(id, notice('🔎 Mencari lawan bicara… Kamu akan diberi tahu di DM ini saat cocok.'));
       if (!ok) { mm.leave(id); return reply('❌ Bot tidak bisa mengirim DM. Buka profil bot → **Kirim Pesan**, lalu coba lagi.'); }
       greeted.add(id);
       return reply('🔎 Masuk antrean. Cek DM dari bot ini.');
     }
     // matched
     const matchMsg = '✅ **Terhubung!** Kirim pesan biasa di DM ini. `/next` · `/stop` · `/report`';
-    const okPartner = await dm(r.partnerId, { embeds: [say(matchMsg)] });
+    const okPartner = await dm(r.partnerId, notice(matchMsg));
     if (!okPartner) { mm.leave(id); return reply('Lawan bicara tidak dapat dihubungi. Coba `/start` lagi.'); }
-    await dm(id, { embeds: [say(matchMsg)] });
+    await dm(id, notice(matchMsg));
     greeted.add(id);
     return reply('✅ Terhubung! Lanjutkan di DM bot ini.');
   }
@@ -103,11 +102,11 @@ async function handleDM(msg) {
   if (mm.isBanned(id)) return;
   const partner = mm.partnerOf(id);
   if (!partner) {
-    if (!greeted.has(id)) { greeted.add(id); await msg.channel.send({ embeds: [say(config.texts.welcome)] }).catch(() => {}); }
-    else if (!mm.isQueued(id)) await msg.channel.send({ embeds: [say('Belum ada chat aktif. Ketik `/start`.')] }).catch(() => {});
+    if (!greeted.has(id)) { greeted.add(id); await msg.channel.send(notice(config.texts.welcome)).catch(() => {}); }
+    else if (!mm.isQueued(id)) await msg.channel.send(notice('Belum ada chat aktif. Ketik `/start`.')).catch(() => {});
     return;
   }
-  const warn = (t) => msg.reply(`⚠️ ${t}`).catch(() => {});
+  const warn = (t) => msg.reply(notice(`⚠️ ${t}`)).catch(() => {});
   const hasText = Boolean(msg.content?.trim());
   const hasMedia = msg.attachments.size > 0;
   const hasSticker = Boolean(msg.stickers?.size);
@@ -194,9 +193,9 @@ client.once('clientReady', () => {
     .catch((e) => console.error('[commands] gagal sinkron:', e.message));
   setInterval(async () => {
     const { queueExpired, sessionsExpired } = mm.sweep();
-    for (const id of queueExpired) await dm(id, { embeds: [say('⌛ Belum ada lawan bicara. Coba lagi dengan `/start`.')] });
+    for (const id of queueExpired) await dm(id, notice('⌛ Belum ada lawan bicara. Coba lagi dengan `/start`.'));
     for (const [a, b] of sessionsExpired) {
-      for (const id of [a, b]) await dm(id, { embeds: [say('💤 Chat berakhir karena sepi.')] });
+      for (const id of [a, b]) await dm(id, notice('💤 Chat berakhir karena sepi.'));
     }
   }, 30 * 1000).unref();
 });
@@ -204,7 +203,7 @@ client.once('clientReady', () => {
 // Panduan otomatis saat bot diinstal ke server: kirim ke pemilik server (DM).
 client.on('guildCreate', async (guild) => {
   const owner = await guild.fetchOwner().catch(() => null);
-  if (owner) await dm(owner.id, { embeds: [say(config.texts.welcome)] });
+  if (owner) await dm(owner.id, notice(config.texts.welcome));
 });
 
 if (require.main === module) {
