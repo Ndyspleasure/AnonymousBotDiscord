@@ -1,4 +1,5 @@
 'use strict';
+const FOOTER = 'Patuhi syarat dan ketentuan kami, pelanggar dapat dikenakan sanksi banned permanen';
 // Semua "data" bot ada di sini (tanpa database). Ubah lalu deploy ulang.
 module.exports = {
   brand: { name: 'Anonymous Bot', color: 0x5865f2, hubName: 'Vanillate.ID' },
@@ -32,7 +33,7 @@ module.exports = {
     noChat: '💤 **Belum ada chat aktif.** Kalau chat tadi terputus, kemungkinan bot baru saja restart. Ketik `/start` untuk mencari lawan bicara baru, atau `/help` untuk panduan.',
     unsupported: 'Silakan kirimkan teks pesan atau media saja.',
     noCustomEmoji: 'Emoji kustom/eksternal tidak didukung. Silakan kirimkan emoji standar biasa.',
-    footer: 'Patuhi syarat dan ketentuan kami, pelanggar dapat dikenakan sanksi banned permanen',
+    footer: FOOTER,
 
     welcome: [
       '👋 **Selamat datang di Anonymous Bot!**',
@@ -47,7 +48,8 @@ module.exports = {
       '**Boleh dikirim**: teks, emoji standar, stiker, GIF, foto, dan video.',
       '',
       'Baca juga `/rules` dan `/terms`.',
-      '🛡️ Demi keamanan, percakapan dicatat dan dikirim ke log moderasi setelah chat berakhir.',
+      '',
+      `-# ${FOOTER}`,
     ].join('\n'),
 
     rules: [
