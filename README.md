@@ -29,7 +29,7 @@ Stranger:
 - GIF dari menu GIF Discord (Tenor/Giphy/CDN Discord) tampil di dalam kartu V2. Bila media tautannya tidak bisa diselesaikan, bot memakai pesan klasik berisi tautan supaya tetap tampil sebagai GIF.
 - Tombol Report hanya bekerja untuk pesan dari chat yang masih aktif.
 - Berkas laporan memuat ≤10 pesan terakhir beserta tautan media sementara; bot tidak menyimpan berkas media. Tidak ada gerbang usia: foto/video seksual eksplisit dilarang di `/rules` dan ditangani lewat laporan.
-- Semua pesan bot (info, peringatan, panduan) memakai kartu Components V2, bukan embed. Balasan command dan tombol bersifat ephemeral; pemberitahuan ke DM tidak.
+- Semua pesan bot (info, peringatan, panduan) memakai kartu Components V2, bukan embed. Di DM, balasan command dan tombol tampil biasa (permanen); hanya bila command dipakai di channel server balasannya ephemeral.
 - DM tidak butuh intent privileged. Command bisa dipakai di DM/mana saja (install **User** maupun **Server**).
 
 ## Setup

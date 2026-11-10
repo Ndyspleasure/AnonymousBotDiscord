@@ -37,7 +37,9 @@ async function endBoth(userId, partnerId, reasonToPartner) {
 /** Dipakai slash command dan tombol (Next/Stop/Report). `arg` = id pesan untuk Report. */
 async function handleCommand(i, sub = i.commandName, arg = null) {
   const id = i.user.id;
-  const reply = (text) => i.reply(ephemeral(notice(text)));
+  // Di DM balasan tampil biasa (permanen, seperti informasi). Di channel server tetap ephemeral
+  // supaya tidak membanjiri channel dan tidak membuka bahwa seseorang sedang mencari chat anonim.
+  const reply = (text) => i.reply(i.inGuild() ? ephemeral(notice(text)) : notice(text));
 
   if (mm.isBanned(id)) return reply('⛔ Kamu tidak dapat menggunakan bot ini.');
 
@@ -55,18 +57,20 @@ async function handleCommand(i, sub = i.commandName, arg = null) {
     if (r.status === 'cooldown') return reply('⏳ Tunggu sebentar sebelum mencari lagi.');
     if (r.status === 'busy') return reply('Kamu sedang dalam chat/antrean. Pakai `/stop` untuk berhenti.');
     if (r.status === 'queued') {
-      // pastikan bot bisa DM user ini
+      greeted.add(id);
+      // Di DM cukup satu balasan; dari server kirim notifikasi ke DM lalu balas ephemeral.
+      if (!i.inGuild()) return reply('🔎 Mencari lawan bicara… Kamu akan diberi tahu di DM ini saat cocok.');
       const ok = await dm(id, notice('🔎 Mencari lawan bicara… Kamu akan diberi tahu di DM ini saat cocok.'));
       if (!ok) { mm.leave(id); return reply('❌ Bot tidak bisa mengirim DM. Buka profil bot → **Kirim Pesan**, lalu coba lagi.'); }
-      greeted.add(id);
       return reply('🔎 Masuk antrean. Cek DM dari bot ini.');
     }
     // matched
     const matchMsg = '✅ **Terhubung!** Kirim pesan biasa di DM ini. `/next` · `/stop` · `/report`';
     const okPartner = await dm(r.partnerId, notice(matchMsg));
     if (!okPartner) { mm.leave(id); return reply('Lawan bicara tidak dapat dihubungi. Coba `/start` lagi.'); }
-    await dm(id, notice(matchMsg));
     greeted.add(id);
+    if (!i.inGuild()) return reply(matchMsg);
+    await dm(id, notice(matchMsg));
     return reply('✅ Terhubung! Lanjutkan di DM bot ini.');
   }
 
