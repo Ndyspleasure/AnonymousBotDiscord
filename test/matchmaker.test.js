@@ -40,25 +40,14 @@ test('sweep antrean & sesi idle, buffer laporan terbatas', () => {
   assert.equal(mm.partnerOf('a'), null);
 });
 
-test('media hanya bila kedua pihak mode 18+, reset saat chat berakhir', () => {
+test('record memberi id unik; findEntry hanya di chat aktif', () => {
   let t = 1_000_000; const mm = new Matchmaker(() => t);
   mm.join('a'); mm.join('b');
-  assert.equal(mm.canSendMedia('a'), false);
-  mm.setAdult('a', true); assert.equal(mm.canSendMedia('a'), false);
-  mm.setAdult('b', true); assert.equal(mm.canSendMedia('a'), true);
-  mm.addPending('tk', 'a', 'b', [{ attachment: 'u', name: 'n' }]);
-  assert.equal(mm.takePending('tk', 'a'), null, 'hanya penerima yang boleh');
-  assert.ok(mm.takePending('tk', 'b'));
-  assert.equal(mm.takePending('tk', 'b'), null, 'sekali pakai');
-  mm.addPending('tk2', 'a', 'b', []);
+  const e1 = mm.record('a', 'halo', [{ name: 'media1.png', url: 'u' }]);
+  const e2 = mm.record('b', 'hai');
+  assert.notEqual(e1.id, e2.id);
+  assert.equal(mm.findEntry('b', e1.id).from, 'a');
+  assert.equal(mm.findEntry('a', e2.id).text, 'hai');
   mm.leave('a');
-  assert.equal(mm.isAdult('a'), false); assert.equal(mm.isAdult('b'), false);
-  assert.equal(mm.takePending('tk2', 'b'), null, 'dibersihkan saat chat berakhir');
-});
-
-test('media tertunda kedaluwarsa', () => {
-  let t = 1_000_000; const mm = new Matchmaker(() => t);
-  mm.join('a'); mm.join('b'); mm.addPending('tk', 'a', 'b', []);
-  t += config.limits.mediaPendingMs + 1;
-  assert.equal(mm.takePending('tk', 'b'), null);
+  assert.equal(mm.findEntry('b', e1.id), null, 'hilang saat chat berakhir');
 });

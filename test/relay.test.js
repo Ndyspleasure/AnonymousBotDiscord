@@ -1,0 +1,31 @@
+'use strict';
+const test = require('node:test');
+const assert = require('node:assert');
+const { IDS, buildRelay } = require('../src/relay');
+const config = require('../config');
+
+const flat = (o) => JSON.stringify(o);
+
+test('relay teks: Components V2, tombol Next/Stop/Report, footer', () => {
+  const p = buildRelay({ text: 'halo', entryId: 7 });
+  assert.ok(p.flags & (1 << 15), 'flag IsComponentsV2');
+  assert.equal(p.content, undefined, 'V2 tidak boleh memakai content');
+  const j = flat(p.components);
+  assert.ok(j.includes(IDS.NEXT) && j.includes(IDS.STOP) && j.includes(`${IDS.REPORT}7`));
+  assert.ok(j.includes(config.texts.footer) && j.includes('halo'));
+  assert.deepEqual(p.allowedMentions, { parse: [] });
+});
+
+test('relay media: galeri attachment:// dan tombol "Laporkan pesan ini"', () => {
+  const p = buildRelay({ text: null, entryId: 9, files: [{ attachment: 'https://cdn/x.png', name: 'media1.png' }] });
+  const j = flat(p.components);
+  assert.ok(j.includes('attachment://media1.png') && j.includes('Laporkan pesan ini'));
+  assert.equal(p.files.length, 1);
+});
+
+test('relay GIF (tautan) memakai pesan klasik agar tautan tampil', () => {
+  const p = buildRelay({ text: 'https://tenor.com/view/x-1', entryId: 3 });
+  assert.equal(p.flags, undefined);
+  assert.ok(p.content.includes('https://tenor.com/view/x-1') && p.content.includes(config.texts.footer));
+  assert.ok(flat(p.components).includes(`${IDS.REPORT}3`));
+});

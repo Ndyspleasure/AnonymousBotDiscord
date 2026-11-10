@@ -17,8 +17,6 @@ const builders = [
   make('help', 'Tampilkan panduan penggunaan'),
   make('rules', 'Peraturan penggunaan'),
   make('terms', 'Syarat dan ketentuan'),
-  make('dewasa', 'Mode 18+ untuk kirim/terima gambar dan video (hilang saat chat berakhir)')
-    .addBooleanOption((o) => o.setName('aktif').setDescription('Aktifkan (kamu menyatakan berusia 18+)').setRequired(true)),
 ];
 
 module.exports = { definitions: builders.map((b) => b.toJSON()) };

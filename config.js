@@ -13,7 +13,6 @@ module.exports = {
     reportBufferSize: 10,              // pesan terakhir yang ikut dilaporkan
     maxMediaBytes: 8 * 1024 * 1024,    // maks ukuran gambar/video
     maxMediaPerMessage: 4,
-    mediaPendingMs: 15 * 60 * 1000,    // batas waktu tombol Tampilkan
   },
 
   // Tautan yang diizinkan hanya untuk GIF dari menu GIF Discord.
@@ -26,6 +25,8 @@ module.exports = {
   blockedWords: [],
 
   texts: {
+    footer: 'Patuhi syarat dan ketentuan kami, pelanggar dapat dikenakan sanksi banned permanen',
+
     welcome: [
       '👋 **Selamat datang di Anonymous Bot!**',
       '',
@@ -34,13 +35,12 @@ module.exports = {
       '**Cara pakai**',
       '1. Ketik `/start` untuk masuk antrean.',
       '2. Setelah cocok, **kirim pesan biasa di DM ini** dan bot meneruskannya.',
-      '3. `/next` cari lawan baru · `/stop` berhenti · `/report` laporkan.',
+      '3. Tiap pesan punya tombol **Next** (cari lawan baru), **Stop** (berhenti), dan **Report** (laporkan pesan itu).',
       '',
-      '**Boleh dikirim**: teks, emoji, stiker, dan GIF (menu GIF Discord).',
-      '**Gambar & video** hanya bila KEDUA pihak mengaktifkan `/dewasa` (khusus usia 18+). Penerima harus menekan **Tampilkan** dulu. Mode ini mati otomatis saat chat berakhir.',
+      '**Boleh dikirim**: teks, emoji, stiker, GIF, foto, dan video.',
       '',
       'Baca juga `/rules` dan `/terms`.',
-      '🔒 Bot **tidak menyimpan** percakapan. Moderator hanya menerima transkrip bila kamu menekan `/report`.',
+      '🔒 Bot **tidak menyimpan** percakapan. Moderator hanya menerima transkrip bila kamu melaporkan.',
     ].join('\n'),
 
     rules: [
@@ -49,22 +49,22 @@ module.exports = {
       '1. Bersikap sopan. Dilarang melecehkan, mengancam, atau menghina.',
       '2. Dilarang konten SARA, ujaran kebencian, dan kekerasan.',
       '3. **Dilarang keras** konten seksual yang melibatkan anak di bawah umur. Pelanggaran dilaporkan dan diblokir permanen.',
-      '4. Dilarang membagikan data pribadi (milikmu atau orang lain), termasuk meminta identitas lawan bicara.',
-      '5. Dilarang spam, iklan, penipuan, dan tautan selain GIF Tenor/Giphy.',
-      '6. Gambar & video hanya untuk pengguna **18+** yang mengaktifkan `/dewasa`. Dilarang mengirimnya ke orang yang tidak setuju.',
+      '4. Dilarang mengirim foto/video seksual eksplisit, kekerasan ekstrem (gore), atau konten yang tidak diminta lawan bicara.',
+      '5. Dilarang membagikan data pribadi (milikmu atau orang lain), termasuk meminta identitas lawan bicara.',
+      '6. Dilarang spam, iklan, penipuan, dan tautan selain GIF Tenor/Giphy.',
       '7. Dilarang mencoba mengelabui bot (alt akun untuk menghindari blokir, dsb.).',
       '',
-      'Merasa tidak nyaman? Gunakan `/next` atau `/report` kapan saja.',
+      'Merasa tidak nyaman? Tekan **Next** atau **Report** kapan saja.',
     ].join('\n'),
 
     terms: [
       '📄 **Syarat & Ketentuan**',
       '',
-      '**1. Penggunaan.** Dengan memakai bot ini kamu menyetujui syarat ini dan [Ketentuan Layanan Discord](https://discord.com/terms). Pengguna minimal berusia sesuai ketentuan Discord. Fitur gambar/video khusus **18+**.',
+      '**1. Penggunaan.** Dengan memakai bot ini kamu menyetujui syarat ini dan [Ketentuan Layanan Discord](https://discord.com/terms), termasuk batas usia minimal Discord.',
       '**2. Anonimitas.** Bot meneruskan pesan tanpa menampilkan namamu kepada lawan bicara. Anonimitas tidak menjamin kebal dari konsekuensi: moderator dapat melihat ID akun pada laporan.',
-      '**3. Data.** Bot **tidak memakai database**. Antrean dan sesi hanya di memori dan hilang saat bot restart atau chat berakhir. Isi chat tidak disimpan. Saat kamu menekan `/report`, maksimal 10 pesan teks terakhir beserta ID pelapor dan terlapor dikirim ke moderator. Gambar/video tidak ikut dilaporkan.',
-      '**4. Konten pengguna.** Setiap pengguna bertanggung jawab atas pesan yang dikirimnya. Pengelola bot tidak memeriksa isi chat dan tidak bertanggung jawab atas konten pengguna lain.',
-      '**5. Sanksi.** Pelanggaran aturan dapat berujung pemblokiran dari bot tanpa pemberitahuan.',
+      '**3. Data.** Bot **tidak memakai database**. Antrean dan sesi hanya di memori dan hilang saat bot restart atau chat berakhir. Isi chat tidak disimpan. Saat kamu melaporkan, maksimal 10 pesan terakhir (teks dan tautan sementara ke media) beserta ID pelapor dan terlapor dikirim ke moderator. Bot tidak menyimpan berkas gambar/video.',
+      '**4. Konten pengguna.** Setiap pengguna bertanggung jawab atas pesan yang dikirimnya. Pengelola bot tidak memeriksa isi chat sebelum diteruskan dan tidak bertanggung jawab atas konten pengguna lain. Konten yang melanggar dapat dilaporkan lewat tombol **Report**.',
+      '**5. Sanksi.** Pelanggaran aturan dapat berujung pemblokiran permanen dari bot tanpa pemberitahuan.',
       '**6. Layanan.** Bot disediakan apa adanya tanpa jaminan selalu tersedia. Chat dapat terputus sewaktu-waktu (mis. saat pemeliharaan).',
       '**7. Perubahan.** Syarat dapat diperbarui sewaktu-waktu.',
     ].join('\n'),

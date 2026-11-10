@@ -9,8 +9,7 @@ class Matchmaker {
     this.sessions = new Map();  // userId -> { partnerId, lastActivity, buffer[] }
     this.cooldowns = new Map(); // userId -> ts terakhir /mulai
     this.rate = new Map();      // userId -> [timestamps]
-    this.adult = new Set();     // userId yang mengaktifkan mode 18+ (per chat)
-    this.pendingMedia = new Map(); // token -> { from, to, files[], expires }
+    this.seq = 0;               // id pesan untuk tombol Report
   }
 
   isBanned(id) { return config.bannedUserIds.includes(id); }
@@ -40,39 +39,13 @@ class Matchmaker {
     this.sessions.set(b, { partnerId: a, lastActivity: t, buffer: [] });
   }
 
-  setAdult(id, on) { if (on) this.adult.add(id); else this.adult.delete(id); }
-  isAdult(id) { return this.adult.has(id); }
-  /** Media hanya boleh bila kedua pihak mengaktifkan mode 18+. */
-  canSendMedia(id) {
-    const p = this.partnerOf(id);
-    return Boolean(p) && this.isAdult(id) && this.isAdult(p);
-  }
-
-  addPending(token, from, to, files) {
-    this.pendingMedia.set(token, { from, to, files, expires: this.now() + config.limits.mediaPendingMs });
-  }
-  /** Ambil media tertunda bila penekan = penerima dan chat masih aktif. */
-  takePending(token, userId) {
-    const m = this.pendingMedia.get(token);
-    if (!m || m.expires < this.now() || m.to !== userId || this.partnerOf(userId) !== m.from) return null;
-    this.pendingMedia.delete(token);
-    return m;
-  }
-  _clearMedia(...ids) {
-    for (const id of ids) this.adult.delete(id);
-    for (const [t, m] of this.pendingMedia) {
-      if (ids.includes(m.from) || ids.includes(m.to)) this.pendingMedia.delete(t);
-    }
-  }
-
   /** Akhiri sesi/antrean. Mengembalikan partnerId bila ada sesi. */
   leave(id) {
     this.queue.delete(id);
     const s = this.sessions.get(id);
-    if (!s) { this._clearMedia(id); return null; }
+    if (!s) return null;
     this.sessions.delete(id);
     this.sessions.delete(s.partnerId);
-    this._clearMedia(id, s.partnerId);
     return s.partnerId;
   }
 
@@ -86,18 +59,24 @@ class Matchmaker {
     return true;
   }
 
-  /** Catat pesan di buffer ring kecil (hanya untuk /lapor). */
-  record(id, text) {
+  /** Catat pesan di buffer ring kecil (hanya untuk laporan). Mengembalikan entri (id unik). */
+  record(id, text, media = []) {
     const s = this.sessions.get(id);
-    if (!s) return;
+    if (!s) return null;
     s.lastActivity = this.now();
     this.sessions.get(s.partnerId).lastActivity = s.lastActivity;
-    const entry = { from: id, text, at: s.lastActivity };
+    const entry = { id: ++this.seq, from: id, text, media, at: s.lastActivity };
     for (const uid of [id, s.partnerId]) {
       const buf = this.sessions.get(uid).buffer;
       buf.push(entry);
       if (buf.length > config.limits.reportBufferSize) buf.shift();
     }
+    return entry;
+  }
+
+  /** Entri di buffer chat aktif milik userId (untuk tombol Report). */
+  findEntry(userId, entryId) {
+    return this.sessions.get(userId)?.buffer.find((e) => e.id === entryId) ?? null;
   }
 
   snapshot(id) {
@@ -109,7 +88,7 @@ class Matchmaker {
     const t = this.now();
     const queueExpired = [];
     for (const [id, at] of this.queue) {
-      if (t - at > config.limits.queueTimeoutMs) { this.queue.delete(id); this._clearMedia(id); queueExpired.push(id); }
+      if (t - at > config.limits.queueTimeoutMs) { this.queue.delete(id); queueExpired.push(id); }
     }
     const sessionsExpired = [];
     const seen = new Set();
@@ -120,8 +99,7 @@ class Matchmaker {
         sessionsExpired.push([id, s.partnerId]);
       }
     }
-    for (const [a, b] of sessionsExpired) { this.sessions.delete(a); this.sessions.delete(b); this._clearMedia(a, b); }
-    for (const [tk, m] of this.pendingMedia) if (m.expires < t) this.pendingMedia.delete(tk);
+    for (const [a, b] of sessionsExpired) { this.sessions.delete(a); this.sessions.delete(b); }
     for (const [id, last] of this.cooldowns) {
       if (t - last > 60 * 1000) this.cooldowns.delete(id);
     }

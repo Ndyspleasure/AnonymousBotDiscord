@@ -1,15 +1,14 @@
 'use strict';
 require('dotenv').config();
-const crypto = require('node:crypto');
 const {
-  Client, GatewayIntentBits, Partials, MessageFlags, EmbedBuilder,
-  ActionRowBuilder, ButtonBuilder, ButtonStyle, StickerFormatType,
+  Client, GatewayIntentBits, Partials, MessageFlags, EmbedBuilder, StickerFormatType,
 } = require('discord.js');
 const config = require('./config');
 const { Matchmaker } = require('./src/matchmaker');
 const { checkMessage } = require('./src/filter');
 const { syncCommands } = require('./src/registerCommands');
 const { sendReportFile } = require('./src/report');
+const { IDS, buildRelay } = require('./src/relay');
 
 const mm = new Matchmaker();
 const COMMANDS = new Set(require('./src/commands').definitions.map((d) => d.name));
@@ -35,9 +34,9 @@ async function endBoth(userId, partnerId, reasonToPartner) {
   if (partnerId && reasonToPartner) await dm(partnerId, { embeds: [say(reasonToPartner)] });
 }
 
-async function handleCommand(i) {
+/** Dipakai slash command dan tombol (Next/Stop/Report). `arg` = id pesan untuk Report. */
+async function handleCommand(i, sub = i.commandName, arg = null) {
   const id = i.user.id;
-  const sub = i.commandName;
   const reply = (text) => i.reply({ embeds: [say(text)], flags: MessageFlags.Ephemeral });
 
   if (mm.isBanned(id)) return reply('⛔ Kamu tidak dapat menggunakan bot ini.');
@@ -45,14 +44,6 @@ async function handleCommand(i) {
   if (sub === 'help') return reply(config.texts.welcome);
   if (sub === 'rules') return reply(config.texts.rules);
   if (sub === 'terms') return reply(config.texts.terms);
-
-  if (sub === 'dewasa') {
-    const on = i.options.getBoolean('aktif', true);
-    mm.setAdult(id, on);
-    return reply(on
-      ? '🔞 Mode 18+ **aktif** untuk chat ini. Dengan mengaktifkannya kamu menyatakan berusia **18 tahun ke atas**. Gambar & video baru terkirim bila lawan bicaramu juga mengaktifkannya. Mati otomatis saat chat berakhir.'
-      : '✅ Mode 18+ dimatikan. Gambar & video tidak akan dikirim atau diterima.');
-  }
 
   if (sub === 'start' || sub === 'next') {
     if (sub === 'next') {
@@ -90,7 +81,15 @@ async function handleCommand(i) {
   if (sub === 'report') {
     const p = mm.partnerOf(id);
     if (!p) return reply('Tidak ada chat aktif untuk dilaporkan.');
-    const ok = await sendReportFile(process.env.REPORT_WEBHOOK_URL, { reporterId: id, reportedId: p, buffer: mm.snapshot(id) });
+    let flaggedId = null;
+    if (arg != null) {
+      const entry = mm.findEntry(id, arg);
+      if (!entry || entry.from !== p) return reply('Pesan ini bukan bagian dari chat yang sedang aktif.');
+      flaggedId = entry.id;
+    }
+    const ok = await sendReportFile(process.env.REPORT_WEBHOOK_URL, {
+      reporterId: id, reportedId: p, buffer: mm.snapshot(id), flaggedId,
+    });
     mm.leave(id);
     await endBoth(id, p, '👋 Chat diakhiri.');
     return reply(ok ? '🚩 Laporan terkirim ke moderator & chat diakhiri. Terima kasih.'
@@ -121,71 +120,49 @@ async function handleDM(msg) {
     text = c.text;
   }
 
-  // Gambar & video: hanya bila kedua pihak mengaktifkan mode 18+.
-  let mediaFiles = [];
+  // Foto & video (maks 4 file, 8 MB). Nama berkas dibuat aman untuk attachment://.
+  const files = [];
+  const mediaMeta = [];
   if (hasMedia) {
     const list = [...msg.attachments.values()];
     if (list.length > config.limits.maxMediaPerMessage) return warn(`Maksimal ${config.limits.maxMediaPerMessage} file per pesan.`);
     const bad = list.find((a) => !/^(image|video)\//.test(a.contentType || '') || a.size > config.limits.maxMediaBytes);
-    if (bad) return warn(`Hanya gambar/video maks ${Math.floor(config.limits.maxMediaBytes / 1048576)} MB yang diizinkan.`);
-    if (!mm.isAdult(id)) return warn('Gambar & video butuh mode 18+. Ketik `/dewasa aktif:True` (khusus usia 18+).');
-    if (!mm.isAdult(partner)) return warn('Lawan bicaramu belum mengaktifkan mode 18+, jadi media tidak dikirim.');
-    mediaFiles = list.map((a) => ({ attachment: a.url, name: `SPOILER_${a.name || 'media'}` }));
+    if (bad) return warn(`Hanya foto/video maks ${Math.floor(config.limits.maxMediaBytes / 1048576)} MB yang diizinkan.`);
+    list.forEach((a, n) => {
+      const ext = (a.name?.match(/\.([a-z0-9]{1,5})$/i)?.[1] || (a.contentType.startsWith('video/') ? 'mp4' : 'png')).toLowerCase();
+      const name = `media${n + 1}.${ext}`;
+      files.push({ attachment: a.url, name });
+      mediaMeta.push({ name, url: a.url });
+    });
   }
 
   // Stiker: dikirim sebagai gambar (Lottie tidak didukung).
-  const stickerFiles = [];
   if (hasSticker) {
+    let n = 0;
     for (const st of msg.stickers.values()) {
       if (st.format === StickerFormatType.Lottie) return warn('Stiker animasi jenis ini belum didukung.');
       const ext = st.format === StickerFormatType.GIF ? 'gif' : 'png';
-      stickerFiles.push({ attachment: st.url, name: `${st.name || 'stiker'}.${ext}` });
+      const name = `stiker${++n}.${ext}`;
+      files.push({ attachment: st.url, name });
+      mediaMeta.push({ name: `${st.name || 'stiker'} (stiker)`, url: st.url });
     }
   }
 
-  if (text || stickerFiles.length) {
-    const sent = await dm(partner, {
-      content: text ? `💬 **Stranger:** ${text}` : '💬 **Stranger:** (stiker)',
-      files: stickerFiles,
-      allowedMentions: { parse: [] },
-    });
-    if (!sent) { mm.leave(id); return warn('❌ Lawan bicara tidak dapat dihubungi. Chat diakhiri.'); }
-  }
-
-  if (mediaFiles.length) {
-    const token = crypto.randomBytes(8).toString('hex');
-    mm.addPending(token, id, partner, mediaFiles);
-    const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId(`anonmedia:${token}`).setLabel('Tampilkan').setEmoji('🔞').setStyle(ButtonStyle.Danger),
-    );
-    const sent = await dm(partner, {
-      embeds: [say(`🔞 Lawan bicaramu mengirim **${mediaFiles.length} media** (gambar/video) yang bisa berisi konten dewasa. Tekan **Tampilkan** hanya jika kamu berusia 18+ dan mau melihatnya. Jika tidak nyaman, abaikan lalu pakai \`/next\` atau \`/report\`.`)],
-      components: [row],
-    });
-    if (!sent) { mm.leave(id); return warn('❌ Lawan bicara tidak dapat dihubungi. Chat diakhiri.'); }
-  }
-
-  mm.record(id, [text, hasSticker && '[stiker]', hasMedia && '[media tidak ikut dilaporkan]'].filter(Boolean).join(' '));
+  // Catat dulu supaya tombol Report tahu pesan mana yang dilaporkan.
+  const entry = mm.record(id, text, mediaMeta);
+  const sent = await dm(partner, buildRelay({ text, files, entryId: entry.id }));
+  if (!sent) { mm.leave(id); return warn('❌ Lawan bicara tidak dapat dihubungi. Chat diakhiri.'); }
   msg.react('✅').catch(() => {});
 }
 
-async function handleMediaButton(i) {
-  const token = i.customId.slice('anonmedia:'.length);
-  const m = mm.takePending(token, i.user.id);
-  if (!m) return i.reply({ content: '⌛ Media sudah kedaluwarsa atau chat telah berakhir.', flags: MessageFlags.Ephemeral });
-  if (!mm.isAdult(i.user.id)) {
-    mm.pendingMedia.set(token, m); // kembalikan, belum diaktifkan
-    return i.reply({ content: '🔞 Aktifkan dulu mode 18+ dengan `/dewasa aktif:True`, lalu tekan Tampilkan lagi.', flags: MessageFlags.Ephemeral });
-  }
-  await i.update({ components: [] }).catch(() => {});
-  await i.followUp({ content: '🔞 **Media dari Stranger**', files: m.files }).catch(async () => {
-    await i.followUp({ content: '❌ Media tidak bisa ditampilkan (mungkin sudah dihapus pengirim).', flags: MessageFlags.Ephemeral }).catch(() => {});
-  });
-}
-
 client.on('interactionCreate', (i) => {
-  if (i.isButton() && i.customId.startsWith('anonmedia:')) {
-    handleMediaButton(i).catch((e) => console.error('[media]', e));
+  if (i.isButton() && i.customId.startsWith('anon:')) {
+    let action = null;
+    let arg = null;
+    if (i.customId === IDS.NEXT) action = 'next';
+    else if (i.customId === IDS.STOP) action = 'stop';
+    else if (i.customId.startsWith(IDS.REPORT)) { action = 'report'; arg = Number(i.customId.slice(IDS.REPORT.length)); }
+    if (action) handleCommand(i, action, arg).catch((e) => console.error(`[btn:${action}]`, e));
     return;
   }
   if (i.isChatInputCommand() && COMMANDS.has(i.commandName)) {

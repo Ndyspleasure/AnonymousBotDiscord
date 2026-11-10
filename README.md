@@ -7,7 +7,14 @@ Bot chat anonim 1-1 lewat **DM**. Tanpa database: konfigurasi di `config.js`, st
 2. **Anonymous Bot** menangani onboarding (panduan di DM) dan seluruh chat.
 
 ## Cara kerja
-- `/start` → antrean → dipasangkan acak. Pesan biasa di DM bot diteruskan sebagai `💬 Stranger: …`.
+- `/start` → antrean → dipasangkan acak. Pesan biasa di DM bot diteruskan sebagai kartu Components V2:
+
+```
+Stranger:
+<isi pesan>
+[⏭️ Next] [🛑 Stop] [🚩 Report]
+-# Patuhi syarat dan ketentuan kami, pelanggar dapat dikenakan sanksi banned permanen
+```
 
 | Command | Fungsi |
 |---|---|
@@ -15,14 +22,14 @@ Bot chat anonim 1-1 lewat **DM**. Tanpa database: konfigurasi di `config.js`, st
 | `/stop` | Akhiri chat atau keluar dari antrean |
 | `/next` | Akhiri chat ini dan cari lawan baru |
 | `/report` | Laporkan lawan bicara (transkrip `.txt` ke webhook moderator), chat diakhiri |
-| `/help` | Panduan penggunaan |
-| `/rules` | Peraturan |
-| `/terms` | Syarat dan ketentuan |
-| `/dewasa aktif:True/False` | Mode 18+ untuk gambar dan video |
-- Command bisa dipakai di DM/mana saja (install **User** maupun **Server**).
-- DM tidak butuh intent privileged. Teks, emoji, stiker, dan GIF (Tenor/Giphy) langsung diteruskan; tautan lain dan mention dinetralkan; ada rate limit.
-- **Gambar & video** hanya bila kedua pihak menjalankan `/dewasa aktif:True` (menyatakan 18+). Penerima melihat peringatan dan harus menekan **Tampilkan**. Mode 18+ dan media tertunda dihapus saat chat berakhir. Media tidak disimpan dan tidak ikut laporan.
-- `/report` mengirim ≤10 pesan terakhir sebagai berkas `.txt` ke `REPORT_WEBHOOK_URL` (opsional) lalu dibuang.
+| `/help` · `/rules` · `/terms` | Panduan, peraturan, syarat dan ketentuan |
+
+- Tombol **Next / Stop / Report** ada di setiap pesan. Pada pesan berisi media, tombolnya **Laporkan pesan ini**; pesan itu ditandai `>>> DILAPORKAN >>>` di berkas laporan.
+- Boleh dikirim: teks, emoji, stiker, GIF (Tenor/Giphy), foto, dan video (maks 4 file, 8 MB). Tautan lain dan undangan server diblokir, mention dinetralkan, ada rate limit.
+- Pesan berisi tautan GIF memakai pesan klasik (bukan V2) supaya tautannya tetap tampil sebagai GIF.
+- Tombol Report hanya bekerja untuk pesan dari chat yang masih aktif.
+- Berkas laporan memuat ≤10 pesan terakhir beserta tautan media sementara; bot tidak menyimpan berkas media. Tidak ada gerbang usia: foto/video seksual eksplisit dilarang di `/rules` dan ditangani lewat laporan.
+- DM tidak butuh intent privileged. Command bisa dipakai di DM/mana saja (install **User** maupun **Server**).
 
 ## Setup
 ```bash

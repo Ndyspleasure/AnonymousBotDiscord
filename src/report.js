@@ -6,8 +6,8 @@ const stamp = (ms) => {
   return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())} UTC`;
 };
 
-/** Susun isi berkas .txt laporan. Hanya teks; media tidak disertakan. */
-function buildReportText({ reporterId, reportedId, buffer, now = Date.now() }) {
+/** Susun isi berkas .txt laporan. Media hanya berupa tautan sementara (tidak disimpan bot). */
+function buildReportText({ reporterId, reportedId, buffer, flaggedId = null, now = Date.now() }) {
   const lines = [
     'LAPORAN ANONYMOUS CHAT',
     `Waktu laporan : ${stamp(now)}`,
@@ -18,9 +18,11 @@ function buildReportText({ reporterId, reportedId, buffer, now = Date.now() }) {
   ];
   if (!buffer.length) lines.push('(tidak ada pesan tercatat)');
   for (const m of buffer) {
-    lines.push(`[${stamp(m.at)}] ${m.from === reporterId ? 'PELAPOR ' : 'TERLAPOR'}: ${m.text}`);
+    const flag = m.id != null && m.id === flaggedId ? '>>> DILAPORKAN >>> ' : '';
+    lines.push(`${flag}[${stamp(m.at)}] ${m.from === reporterId ? 'PELAPOR ' : 'TERLAPOR'}: ${m.text || '(tanpa teks)'}`);
+    for (const f of m.media || []) lines.push(`    media: ${f.name} ${f.url}`);
   }
-  lines.push('-'.repeat(40), 'Catatan: gambar/video tidak disimpan dan tidak ikut dilaporkan.');
+  lines.push('-'.repeat(40), 'Catatan: bot tidak menyimpan gambar/video. Tautan media bersifat sementara dan dapat kedaluwarsa.');
   return lines.join('\n');
 }
 
