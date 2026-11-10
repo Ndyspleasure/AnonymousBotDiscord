@@ -14,7 +14,7 @@ const builders = [
   make('start', 'Masuk antrean dan dipasangkan dengan orang acak'),
   make('stop', 'Akhiri chat atau keluar dari antrean'),
   make('next', 'Akhiri chat ini dan langsung cari lawan baru'),
-  make('report', 'Laporkan lawan bicara (transkrip .txt ke moderator), lalu chat diakhiri'),
+  make('report', 'Laporkan lawan bicara'),
   make('help', 'Tampilkan panduan penggunaan'),
   make('rules', 'Peraturan penggunaan'),
   make('terms', 'Syarat dan ketentuan'),

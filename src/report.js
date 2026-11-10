@@ -31,7 +31,7 @@ function buildTranscript({ users, startedAt, endedAt, history, reason = 'ended',
     lines.push(`${flag}[${stamp(m.at)}] ${label(m.from)}: ${m.text || '(tanpa teks)'}`);
     for (const f of m.media || []) lines.push(`    media: ${f.name} ${f.url}`);
   }
-  lines.push('-'.repeat(40), 'Catatan: bot tidak menyimpan gambar/video. Tautan media bersifat sementara dan dapat kedaluwarsa.');
+  lines.push('-'.repeat(40), 'Catatan: bot tidak menyimpan gambar/video.');
   return lines.join('\n');
 }
 

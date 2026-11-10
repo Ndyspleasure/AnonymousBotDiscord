@@ -21,7 +21,7 @@ Stranger:
 | `/start` | Masuk antrean dan dipasangkan dengan orang acak |
 | `/stop` | Akhiri chat atau keluar dari antrean |
 | `/next` | Akhiri chat ini dan cari lawan baru |
-| `/report` | Laporkan lawan bicara (transkrip `.txt` ke webhook laporan), chat diakhiri |
+| `/report` | Laporkan lawan bicara |
 | `/help` · `/rules` · `/terms` | Panduan, peraturan, syarat dan ketentuan |
 
 - Tombol **Next / Stop / Report** ada di setiap pesan. Pada pesan berisi media, tombolnya **Laporkan pesan ini**; pesan itu ditandai `>>> DILAPORKAN >>>` di berkas laporan.
