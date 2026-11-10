@@ -29,3 +29,15 @@ test('relay GIF (tautan) memakai pesan klasik agar tautan tampil', () => {
   assert.ok(p.content.includes('https://tenor.com/view/x-1') && p.content.includes(config.texts.footer));
   assert.ok(flat(p.components).includes(`${IDS.REPORT}3`));
 });
+
+test('relay GIF terselesaikan: galeri V2 dengan URL langsung, tanpa pesan klasik', () => {
+  const p = buildRelay({ text: null, entryId: 4, mediaUrls: ['https://media.tenor.com/x.mp4'] });
+  assert.ok(p.flags & (1 << 15));
+  assert.ok(flat(p.components).includes('https://media.tenor.com/x.mp4'));
+});
+
+test('relay classic:true memaksa pesan klasik walau ada URL media', () => {
+  const p = buildRelay({ text: 'https://tenor.com/view/x-1', entryId: 5, classic: true, mediaUrls: ['u'] });
+  assert.equal(p.flags, undefined);
+  assert.ok(p.content.includes('https://tenor.com/view/x-1'));
+});

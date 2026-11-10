@@ -25,8 +25,8 @@ Stranger:
 | `/help` · `/rules` · `/terms` | Panduan, peraturan, syarat dan ketentuan |
 
 - Tombol **Next / Stop / Report** ada di setiap pesan. Pada pesan berisi media, tombolnya **Laporkan pesan ini**; pesan itu ditandai `>>> DILAPORKAN >>>` di berkas laporan.
-- Boleh dikirim: teks, emoji, stiker, GIF (Tenor/Giphy), foto, dan video (maks 4 file, 8 MB). Tautan lain dan undangan server diblokir, mention dinetralkan, ada rate limit.
-- Pesan berisi tautan GIF memakai pesan klasik (bukan V2) supaya tautannya tetap tampil sebagai GIF.
+- Boleh dikirim: teks, emoji standar, stiker (PNG/APNG), GIF, foto, dan video (maks 4 file, 8 MB). Stiker animasi (Lottie), emoji kustom/eksternal, file lain, dan tautan non-GIF ditolak dengan info singkat ("Silakan kirimkan teks pesan atau media saja" / "kirimkan emoji standar biasa"). Mention dinetralkan, ada rate limit.
+- GIF dari menu GIF Discord (Tenor/Giphy/CDN Discord) tampil di dalam kartu V2. Bila media tautannya tidak bisa diselesaikan, bot memakai pesan klasik berisi tautan supaya tetap tampil sebagai GIF.
 - Tombol Report hanya bekerja untuk pesan dari chat yang masih aktif.
 - Berkas laporan memuat ≤10 pesan terakhir beserta tautan media sementara; bot tidak menyimpan berkas media. Tidak ada gerbang usia: foto/video seksual eksplisit dilarang di `/rules` dan ditangani lewat laporan.
 - DM tidak butuh intent privileged. Command bisa dipakai di DM/mana saja (install **User** maupun **Server**).
