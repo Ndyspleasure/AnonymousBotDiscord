@@ -26,6 +26,7 @@ module.exports = {
 
   texts: {
     dmOnly: '🕶️ **Anonymous Bot hanya berfungsi lewat DM**, tidak mendukung server.\nPasang ke akunmu lewat tombol di bawah, lalu buka DM dengan bot dan ketik `/start`.',
+    resumedNotice: '🔄 **Bot baru saja menyala kembali.** Chat kamu **dilanjutkan**. Pesan yang dikirim selama bot mati mungkin tidak sampai, jadi ulangi bila perlu.',
     restartNotice: '🔄 **Bot sedang restart atau pemeliharaan.** Chat/antrean kamu diakhiri. Tunggu sebentar lalu ketik `/start` untuk mencari lawan bicara lagi.',
     crashNotice: '⚠️ **Bot mengalami gangguan dan akan menyala ulang.** Chat/antrean kamu diakhiri. Tunggu sebentar lalu ketik `/start` untuk mencari lagi.',
     noChat: '💤 **Belum ada chat aktif.** Kalau chat tadi terputus, kemungkinan bot baru saja restart. Ketik `/start` untuk mencari lawan bicara baru, atau `/help` untuk panduan.',
@@ -68,7 +69,7 @@ module.exports = {
       '',
       '**1. Penggunaan.** Dengan memakai bot ini kamu menyetujui syarat ini dan [Ketentuan Layanan Discord](https://discord.com/terms), termasuk batas usia minimal Discord.',
       '**2. Anonimitas.** Bot meneruskan pesan tanpa menampilkan namamu kepada lawan bicara. Anonimitas hanya berlaku antar pengguna: moderator dapat melihat ID akun pada transkrip.',
-      '**3. Data.** Bot **tidak memakai database**. Selama chat berlangsung, riwayat pesan disimpan sementara di memori. Setelah chat berakhir (kamu atau lawan bicara menghentikan, melaporkan, atau chat sepi), transkrip teks beserta ID akun dan tautan sementara ke media dikirim ke log moderasi dan disimpan di sana untuk keperluan keamanan. Bot sendiri tidak menyimpan berkas gambar/video.',
+      '**3. Data.** Agar chat tidak terputus saat bot restart, status chat yang sedang berjalan (ID akun, riwayat pesan teks, dan tautan sementara ke media) disimpan di database dan **dihapus setelah chat berakhir**. Pada saat itu, transkrip dikirim ke log moderasi dan disimpan di sana untuk keperluan keamanan. Bot sendiri tidak menyimpan berkas gambar/video.',
       '**4. Konten pengguna.** Setiap pengguna bertanggung jawab atas pesan yang dikirimnya. Pengelola bot tidak memeriksa isi chat sebelum diteruskan dan tidak bertanggung jawab atas konten pengguna lain. Konten yang melanggar dapat dilaporkan lewat tombol **Report**.',
       '**5. Sanksi.** Pelanggaran aturan dapat berujung pemblokiran permanen dari bot tanpa pemberitahuan.',
       '**6. Layanan.** Bot disediakan apa adanya tanpa jaminan selalu tersedia. Chat dapat terputus sewaktu-waktu (mis. saat pemeliharaan).',

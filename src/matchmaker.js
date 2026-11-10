@@ -1,4 +1,5 @@
 'use strict';
+const { randomUUID } = require('node:crypto');
 const config = require('../config');
 
 /**
@@ -7,8 +8,10 @@ const config = require('../config');
  * (dipakai untuk mengirim transkrip ke log moderasi).
  */
 class Matchmaker {
-  constructor(now = () => Date.now()) {
+  /** @param {() => number} now  @param {import('./store').PgStore|null} store  penyimpanan opsional (PostgreSQL) */
+  constructor(now = () => Date.now(), store = null) {
     this.now = now;
+    this.store = store;
     this.queue = new Map();     // userId -> joinedAt
     this.sessions = new Map();  // userId -> { partnerId, chat }
     this.cooldowns = new Map(); // userId -> ts terakhir /start
@@ -36,23 +39,31 @@ class Matchmaker {
       return { status: 'matched', partnerId: other };
     }
     this.queue.set(id, this.now());
+    this.store?.addQueue(id, this.now());
     return { status: 'queued' };
   }
 
   _pair(a, b) {
     const t = this.now();
-    const chat = { users: [a, b], startedAt: t, lastActivity: t, history: [] };
+    const chat = { id: randomUUID(), users: [a, b], startedAt: t, lastActivity: t, history: [] };
     this.sessions.set(a, { partnerId: b, chat });
     this.sessions.set(b, { partnerId: a, chat });
+    this.store?.removeQueue(b); // b = pengguna yang tadi menunggu di antrean
+    this.store?.saveChat(chat);
   }
 
   _finish(chat, reason, meta = {}) {
     for (const u of chat.users) this.sessions.delete(u);
-    if (!this.onEnd || !chat.history.length) return null;
-    this.lastEnd = Promise.resolve(this.onEnd({
-      users: chat.users, startedAt: chat.startedAt, endedAt: this.now(), history: chat.history, reason, ...meta,
-    })).catch(() => false);
-    return this.lastEnd;
+    let ended = null;
+    if (this.onEnd && chat.history.length) {
+      ended = Promise.resolve(this.onEnd({
+        users: chat.users, startedAt: chat.startedAt, endedAt: this.now(), history: chat.history, reason, ...meta,
+      })).catch(() => false);
+      this.lastEnd = ended;
+    }
+    // Hapus dari database setelah transkrip dikirim (atau langsung bila tidak ada yang dikirim).
+    if (this.store) Promise.resolve(ended).finally(() => this.store.deleteChat(chat.id));
+    return ended;
   }
 
   /**
@@ -74,7 +85,7 @@ class Matchmaker {
    * `meta` (mis. { reporterId, flaggedId }) diteruskan ke onEnd.
    */
   leave(id, meta = {}) {
-    this.queue.delete(id);
+    if (this.queue.delete(id)) this.store?.removeQueue(id);
     const s = this.sessions.get(id);
     if (!s) return null;
     this._finish(s.chat, meta.reason || (meta.reporterId ? 'report' : 'ended'), meta);
@@ -100,6 +111,7 @@ class Matchmaker {
     const entry = { id: ++this.seq, from: id, text, media, at: chat.lastActivity };
     chat.history.push(entry);
     if (chat.history.length > config.limits.transcriptMaxEntries) chat.history.shift();
+    this.store?.addHistory(chat, entry);
     return entry;
   }
 
@@ -108,12 +120,27 @@ class Matchmaker {
     return this.sessions.get(userId)?.chat.history.find((e) => e.id === entryId) ?? null;
   }
 
+  /**
+   * Pulihkan status dari penyimpanan saat bot menyala (sebelum menerima pesan).
+   * @returns {{users:string[], queued:string[]}} pengguna chat aktif & antre yang dipulihkan
+   */
+  restore({ chats = [], queue = [], maxId = 0 } = {}) {
+    for (const c of chats) {
+      const chat = { id: c.id, users: c.users, startedAt: c.startedAt, lastActivity: c.lastActivity, history: c.history || [] };
+      this.sessions.set(c.users[0], { partnerId: c.users[1], chat });
+      this.sessions.set(c.users[1], { partnerId: c.users[0], chat });
+    }
+    for (const q of queue) this.queue.set(q.userId, q.joinedAt);
+    this.seq = Math.max(this.seq, maxId);
+    return { users: chats.flatMap((c) => c.users), queued: queue.map((q) => q.userId) };
+  }
+
   /** Bersihkan antrean/sesi kedaluwarsa. Mengembalikan { queueExpired[], sessionsExpired[[a,b]] }. */
   sweep() {
     const t = this.now();
     const queueExpired = [];
     for (const [id, at] of this.queue) {
-      if (t - at > config.limits.queueTimeoutMs) { this.queue.delete(id); queueExpired.push(id); }
+      if (t - at > config.limits.queueTimeoutMs) { this.queue.delete(id); this.store?.removeQueue(id); queueExpired.push(id); }
     }
     const sessionsExpired = [];
     const seen = new Set();

@@ -11,6 +11,7 @@ const { sendTranscriptFile } = require('./src/report');
 const { IDS, buildRelay } = require('./src/relay');
 const { resolveGif } = require('./src/gif');
 const { notice, ephemeral, installNotice } = require('./src/notice');
+const { PgStore, createPool } = require('./src/store');
 
 const mm = new Matchmaker();
 // Transkrip dikirim ke log moderasi setiap chat berakhir. Laporan memakai REPORT_WEBHOOK_URL
@@ -191,6 +192,10 @@ client.on('messageCreate', (m) => {
 
 client.once('clientReady', () => {
   console.log(`✅ ${client.user.tag} online`);
+  // Chat yang dipulihkan dari database: beri tahu bahwa bot baru menyala (pesan saat bot mati tidak terkirim).
+  if (resumed.users.length) {
+    Promise.allSettled(resumed.users.map((id) => dm(id, notice(config.texts.resumedNotice))));
+  }
   // Pendaftaran command otomatis (tanpa perlu `node deploy-commands.js` manual).
   syncCommands(client)
     .then((r) => console.log(`[commands] ${r === 'updated' ? 'terdaftar ulang' : 'sudah terbaru'}`))
@@ -213,16 +218,38 @@ async function shutdown(reason, code = 0) {
   if (shuttingDown) return;
   shuttingDown = true;
   try {
-    const { users, queued, ends } = mm.endAll(reason);
-    const text = reason === 'crash' ? config.texts.crashNotice : config.texts.restartNotice;
-    const work = Promise.allSettled([
-      ...[...users, ...queued].map((id) => dm(id, notice(text))),
-      ...ends,
-    ]);
-    await Promise.race([work, new Promise((r) => setTimeout(r, 8000))]);
+    if (mm.store) {
+      // Status chat sudah tersimpan di database: cukup selesaikan penulisan tertunda. Chat dilanjutkan
+      // otomatis saat bot menyala lagi (pengguna diberi tahu di sana).
+      await Promise.race([mm.store.flush(), new Promise((r) => setTimeout(r, 5000))]);
+    } else {
+      const { users, queued, ends } = mm.endAll(reason);
+      const text = reason === 'crash' ? config.texts.crashNotice : config.texts.restartNotice;
+      const work = Promise.allSettled([
+        ...[...users, ...queued].map((id) => dm(id, notice(text))),
+        ...ends,
+      ]);
+      await Promise.race([work, new Promise((r) => setTimeout(r, 8000))]);
+    }
   } catch { /* abaikan, tetap keluar */ }
   process.exit(code);
 }
+
+/** Sambungkan PostgreSQL bila DATABASE_URL ada; gagal = lanjut tanpa penyimpanan (hanya memori). */
+async function setupStore() {
+  if (!process.env.DATABASE_URL) { console.log('[store] DATABASE_URL kosong: hanya memori (chat putus saat restart).'); return; }
+  try {
+    const store = new PgStore(createPool());
+    await store.init();
+    const state = await store.load(config.limits.transcriptMaxEntries);
+    mm.store = store;
+    resumed = mm.restore(state);
+    console.log(`[store] terhubung. Dipulihkan: ${state.chats.length} chat, ${state.queue.length} antre.`);
+  } catch (e) {
+    console.error('[store] gagal terhubung, lanjut hanya memori:', e.message);
+  }
+}
+let resumed = { users: [], queued: [] };
 
 if (require.main === module) {
   process.on('SIGTERM', () => shutdown('restart'));
@@ -231,5 +258,5 @@ if (require.main === module) {
   process.on('unhandledRejection', (e) => { console.error('[fatal]', e); shutdown('crash', 1); });
 
   if (!process.env.DISCORD_TOKEN) throw new Error('DISCORD_TOKEN belum diisi (.env).');
-  client.login(process.env.DISCORD_TOKEN);
+  setupStore().then(() => client.login(process.env.DISCORD_TOKEN));
 }
