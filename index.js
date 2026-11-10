@@ -1,6 +1,10 @@
 'use strict';
 require('dotenv').config();
-const { Client, GatewayIntentBits, Partials, MessageFlags, EmbedBuilder } = require('discord.js');
+const crypto = require('node:crypto');
+const {
+  Client, GatewayIntentBits, Partials, MessageFlags, EmbedBuilder,
+  ActionRowBuilder, ButtonBuilder, ButtonStyle, StickerFormatType,
+} = require('discord.js');
 const config = require('./config');
 const { Matchmaker } = require('./src/matchmaker');
 const { checkMessage } = require('./src/filter');
@@ -55,6 +59,14 @@ async function handleAnon(i) {
 
   if (sub === 'bantuan') return reply(config.texts.welcome);
 
+  if (sub === 'dewasa') {
+    const on = i.options.getBoolean('aktif', true);
+    mm.setAdult(id, on);
+    return reply(on
+      ? '🔞 Mode 18+ **aktif** untuk chat ini. Dengan mengaktifkannya kamu menyatakan berusia **18 tahun ke atas**. Gambar & video baru terkirim bila lawan bicaramu juga mengaktifkannya. Mati otomatis saat chat berakhir.'
+      : '✅ Mode 18+ dimatikan. Gambar & video tidak akan dikirim atau diterima.');
+  }
+
   if (sub === 'mulai' || sub === 'lewati') {
     if (sub === 'lewati') {
       const p = mm.leave(id);
@@ -108,17 +120,87 @@ async function handleDM(msg) {
     else if (!mm.isQueued(id)) await msg.channel.send({ embeds: [say('Belum ada chat aktif. Ketik `/anon mulai`.')] }).catch(() => {});
     return;
   }
-  if (msg.attachments.size || msg.stickers?.size) { await msg.reply('⚠️ Hanya teks yang diizinkan.').catch(() => {}); return; }
-  const c = checkMessage(msg.content);
-  if (!c.ok) { await msg.reply(`⚠️ ${c.reason}`).catch(() => {}); return; }
-  if (!mm.allowMessage(id)) { await msg.reply('⏳ Terlalu cepat, pelan-pelan ya.').catch(() => {}); return; }
-  const sent = await dm(partner, { content: `💬 **Stranger:** ${c.text}`, allowedMentions: { parse: [] } });
-  if (!sent) { mm.leave(id); await msg.reply('❌ Lawan bicara tidak dapat dihubungi. Chat diakhiri.').catch(() => {}); return; }
-  mm.record(id, c.text);
+  const warn = (t) => msg.reply(`⚠️ ${t}`).catch(() => {});
+  const hasText = Boolean(msg.content?.trim());
+  const hasMedia = msg.attachments.size > 0;
+  const hasSticker = Boolean(msg.stickers?.size);
+  if (!hasText && !hasMedia && !hasSticker) return warn('Pesan kosong.');
+  if (!mm.allowMessage(id)) return warn('⏳ Terlalu cepat, pelan-pelan ya.');
+
+  let text = null;
+  if (hasText) {
+    const c = checkMessage(msg.content);
+    if (!c.ok) return warn(c.reason);
+    text = c.text;
+  }
+
+  // Gambar & video: hanya bila kedua pihak mengaktifkan mode 18+.
+  let mediaFiles = [];
+  if (hasMedia) {
+    const list = [...msg.attachments.values()];
+    if (list.length > config.limits.maxMediaPerMessage) return warn(`Maksimal ${config.limits.maxMediaPerMessage} file per pesan.`);
+    const bad = list.find((a) => !/^(image|video)\//.test(a.contentType || '') || a.size > config.limits.maxMediaBytes);
+    if (bad) return warn(`Hanya gambar/video maks ${Math.floor(config.limits.maxMediaBytes / 1048576)} MB yang diizinkan.`);
+    if (!mm.isAdult(id)) return warn('Gambar & video butuh mode 18+. Ketik `/anon dewasa aktif:True` (khusus usia 18+).');
+    if (!mm.isAdult(partner)) return warn('Lawan bicaramu belum mengaktifkan mode 18+, jadi media tidak dikirim.');
+    mediaFiles = list.map((a) => ({ attachment: a.url, name: `SPOILER_${a.name || 'media'}` }));
+  }
+
+  // Stiker: dikirim sebagai gambar (Lottie tidak didukung).
+  const stickerFiles = [];
+  if (hasSticker) {
+    for (const st of msg.stickers.values()) {
+      if (st.format === StickerFormatType.Lottie) return warn('Stiker animasi jenis ini belum didukung.');
+      const ext = st.format === StickerFormatType.GIF ? 'gif' : 'png';
+      stickerFiles.push({ attachment: st.url, name: `${st.name || 'stiker'}.${ext}` });
+    }
+  }
+
+  if (text || stickerFiles.length) {
+    const sent = await dm(partner, {
+      content: text ? `💬 **Stranger:** ${text}` : '💬 **Stranger:** (stiker)',
+      files: stickerFiles,
+      allowedMentions: { parse: [] },
+    });
+    if (!sent) { mm.leave(id); return warn('❌ Lawan bicara tidak dapat dihubungi. Chat diakhiri.'); }
+  }
+
+  if (mediaFiles.length) {
+    const token = crypto.randomBytes(8).toString('hex');
+    mm.addPending(token, id, partner, mediaFiles);
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId(`anonmedia:${token}`).setLabel('Tampilkan').setEmoji('🔞').setStyle(ButtonStyle.Danger),
+    );
+    const sent = await dm(partner, {
+      embeds: [say(`🔞 Lawan bicaramu mengirim **${mediaFiles.length} media** (gambar/video) yang bisa berisi konten dewasa. Tekan **Tampilkan** hanya jika kamu berusia 18+ dan mau melihatnya. Jika tidak nyaman, abaikan lalu pakai \`/anon lewati\` atau \`/anon lapor\`.`)],
+      components: [row],
+    });
+    if (!sent) { mm.leave(id); return warn('❌ Lawan bicara tidak dapat dihubungi. Chat diakhiri.'); }
+  }
+
+  mm.record(id, [text, hasSticker && '[stiker]', hasMedia && '[media tidak ikut dilaporkan]'].filter(Boolean).join(' '));
   msg.react('✅').catch(() => {});
 }
 
+async function handleMediaButton(i) {
+  const token = i.customId.slice('anonmedia:'.length);
+  const m = mm.takePending(token, i.user.id);
+  if (!m) return i.reply({ content: '⌛ Media sudah kedaluwarsa atau chat telah berakhir.', flags: MessageFlags.Ephemeral });
+  if (!mm.isAdult(i.user.id)) {
+    mm.pendingMedia.set(token, m); // kembalikan, belum diaktifkan
+    return i.reply({ content: '🔞 Aktifkan dulu mode 18+ dengan `/anon dewasa aktif:True`, lalu tekan Tampilkan lagi.', flags: MessageFlags.Ephemeral });
+  }
+  await i.update({ components: [] }).catch(() => {});
+  await i.followUp({ content: '🔞 **Media dari Stranger**', files: m.files }).catch(async () => {
+    await i.followUp({ content: '❌ Media tidak bisa ditampilkan (mungkin sudah dihapus pengirim).', flags: MessageFlags.Ephemeral }).catch(() => {});
+  });
+}
+
 client.on('interactionCreate', (i) => {
+  if (i.isButton() && i.customId.startsWith('anonmedia:')) {
+    handleMediaButton(i).catch((e) => console.error('[media]', e));
+    return;
+  }
   if (i.isChatInputCommand() && i.commandName === 'anon') {
     handleAnon(i).catch((e) => console.error('[anon]', e));
   }

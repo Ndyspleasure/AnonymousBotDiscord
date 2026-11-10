@@ -8,9 +8,10 @@ Bot chat anonim 1-1 lewat **DM**. Tanpa database: konfigurasi di `config.js`, st
 
 ## Cara kerja
 - `/anon mulai` → antrean → dipasangkan acak. Pesan biasa di DM bot diteruskan sebagai `💬 Stranger: …`.
-- `/anon lewati` · `/anon stop` · `/anon lapor` · `/anon bantuan`.
+- `/anon lewati` · `/anon stop` · `/anon dewasa` · `/anon lapor` · `/anon bantuan`.
 - Command bisa dipakai di DM/mana saja (install **User** maupun **Server**).
-- DM tidak butuh intent privileged. Hanya teks; tautan, lampiran, dan mention dinetralkan; ada rate limit.
+- DM tidak butuh intent privileged. Teks, emoji, stiker, dan GIF (Tenor/Giphy) langsung diteruskan; tautan lain dan mention dinetralkan; ada rate limit.
+- **Gambar & video** hanya bila kedua pihak menjalankan `/anon dewasa aktif:True` (menyatakan 18+). Penerima melihat peringatan dan harus menekan **Tampilkan**. Mode 18+ dan media tertunda dihapus saat chat berakhir. Media tidak disimpan dan tidak ikut laporan.
 - `/anon lapor` mengirim ≤10 pesan terakhir ke `REPORT_WEBHOOK_URL` (opsional) lalu dibuang.
 
 ## Setup
