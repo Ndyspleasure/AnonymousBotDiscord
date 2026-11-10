@@ -48,10 +48,25 @@ class Matchmaker {
 
   _finish(chat, reason, meta = {}) {
     for (const u of chat.users) this.sessions.delete(u);
-    if (!this.onEnd || !chat.history.length) return;
+    if (!this.onEnd || !chat.history.length) return null;
     this.lastEnd = Promise.resolve(this.onEnd({
       users: chat.users, startedAt: chat.startedAt, endedAt: this.now(), history: chat.history, reason, ...meta,
     })).catch(() => false);
+    return this.lastEnd;
+  }
+
+  /**
+   * Akhiri SEMUA chat dan antrean (bot dimatikan/restart/crash). Transkrip tiap chat dikirim lewat onEnd.
+   * @returns {{users:string[], queued:string[], ends:Promise[]}} pengguna yang perlu diberi tahu
+   */
+  endAll(reason) {
+    const chats = new Set([...this.sessions.values()].map((s) => s.chat));
+    const users = [...this.sessions.keys()];
+    const ends = [];
+    for (const chat of chats) { const p = this._finish(chat, reason); if (p) ends.push(p); }
+    const queued = [...this.queue.keys()];
+    this.queue.clear();
+    return { users, queued, ends };
   }
 
   /**

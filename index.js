@@ -20,7 +20,6 @@ mm.onEnd = (info) => sendTranscriptFile(
   info,
 );
 const COMMANDS = new Set(require('./src/commands').definitions.map((d) => d.name));
-const greeted = new Set(); // user yang sudah dapat panduan (memori saja)
 
 const client = new Client({
   // DM tidak butuh intent privileged (MessageContent) untuk membaca isi pesan.
@@ -67,14 +66,12 @@ async function handleCommand(i, sub = i.commandName, arg = null) {
     if (r.status === 'cooldown') return reply('⏳ Tunggu sebentar sebelum mencari lagi.');
     if (r.status === 'busy') return reply('Kamu sedang dalam chat/antrean. Pakai `/stop` untuk berhenti.');
     if (r.status === 'queued') {
-      greeted.add(id);
       return reply('🔎 Mencari lawan bicara… Kamu akan diberi tahu di DM ini saat cocok.');
     }
     // matched: pasangan diberi tahu lewat DM, kamu lewat balasan ini
     const matchMsg = '✅ **Terhubung!** Kirim pesan biasa di DM ini. `/next` · `/stop` · `/report`';
     const okPartner = await dm(r.partnerId, notice(matchMsg));
     if (!okPartner) { mm.leave(id, { reason: 'unreachable' }); return reply('Lawan bicara tidak dapat dihubungi. Coba `/start` lagi.'); }
-    greeted.add(id);
     return reply(matchMsg);
   }
 
@@ -109,8 +106,8 @@ async function handleDM(msg) {
   if (mm.isBanned(id)) return;
   const partner = mm.partnerOf(id);
   if (!partner) {
-    if (!greeted.has(id)) { greeted.add(id); await msg.channel.send(notice(config.texts.welcome)).catch(() => {}); }
-    else if (!mm.isQueued(id)) await msg.channel.send(notice('Belum ada chat aktif. Ketik `/start`.')).catch(() => {});
+    // Tanpa chat aktif. Setelah bot restart semua orang tampak "baru", jadi jelaskan kemungkinannya.
+    if (!mm.isQueued(id)) await msg.channel.send(notice(config.texts.noChat)).catch(() => {});
     return;
   }
   const warn = (t) => msg.reply(notice(`⚠️ ${t}`)).catch(() => {});
@@ -207,7 +204,32 @@ client.once('clientReady', () => {
   }, 30 * 1000).unref();
 });
 
+// ─── Shutdown/crash terkendali ──────────────────────────────────────────────
+// Saat dimatikan (SIGTERM/SIGINT dari panel hosting) atau crash yang tertangkap, beri tahu semua
+// pengguna yang sedang chat/antre dan kirim transkrip chat yang masih berjalan ke log.
+// Mati paksa (SIGKILL, kehabisan memori, listrik padam) tidak bisa ditangani.
+let shuttingDown = false;
+async function shutdown(reason, code = 0) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  try {
+    const { users, queued, ends } = mm.endAll(reason);
+    const text = reason === 'crash' ? config.texts.crashNotice : config.texts.restartNotice;
+    const work = Promise.allSettled([
+      ...[...users, ...queued].map((id) => dm(id, notice(text))),
+      ...ends,
+    ]);
+    await Promise.race([work, new Promise((r) => setTimeout(r, 8000))]);
+  } catch { /* abaikan, tetap keluar */ }
+  process.exit(code);
+}
+
 if (require.main === module) {
+  process.on('SIGTERM', () => shutdown('restart'));
+  process.on('SIGINT', () => shutdown('restart'));
+  process.on('uncaughtException', (e) => { console.error('[fatal]', e); shutdown('crash', 1); });
+  process.on('unhandledRejection', (e) => { console.error('[fatal]', e); shutdown('crash', 1); });
+
   if (!process.env.DISCORD_TOKEN) throw new Error('DISCORD_TOKEN belum diisi (.env).');
   client.login(process.env.DISCORD_TOKEN);
 }

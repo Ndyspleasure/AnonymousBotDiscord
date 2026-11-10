@@ -26,6 +26,9 @@ module.exports = {
 
   texts: {
     dmOnly: '🕶️ **Anonymous Bot hanya berfungsi lewat DM**, tidak mendukung server.\nPasang ke akunmu lewat tombol di bawah, lalu buka DM dengan bot dan ketik `/start`.',
+    restartNotice: '🔄 **Bot sedang restart atau pemeliharaan.** Chat/antrean kamu diakhiri. Tunggu sebentar lalu ketik `/start` untuk mencari lawan bicara lagi.',
+    crashNotice: '⚠️ **Bot mengalami gangguan dan akan menyala ulang.** Chat/antrean kamu diakhiri. Tunggu sebentar lalu ketik `/start` untuk mencari lagi.',
+    noChat: '💤 **Belum ada chat aktif.** Kalau chat tadi terputus, kemungkinan bot baru saja restart. Ketik `/start` untuk mencari lawan bicara baru, atau `/help` untuk panduan.',
     unsupported: 'Silakan kirimkan teks pesan atau media saja.',
     noCustomEmoji: 'Emoji kustom/eksternal tidak didukung. Silakan kirimkan emoji standar biasa.',
     footer: 'Patuhi syarat dan ketentuan kami, pelanggar dapat dikenakan sanksi banned permanen',

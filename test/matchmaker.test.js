@@ -75,3 +75,18 @@ test('onEnd dipanggil sekali dengan riwayat saat chat berakhir (stop, report, se
   t += 10_000; mm.join('a'); mm.join('b'); mm.leave('a');
   assert.equal(ended.length, 3);
 });
+
+test('endAll mengakhiri semua chat dan antrean, mengirim transkrip, mengembalikan pengguna', async () => {
+  let t = 1_000_000; const mm = new Matchmaker(() => t);
+  const ended = []; mm.onEnd = (info) => { ended.push(info); return true; };
+  mm.join('a'); mm.join('b'); mm.record('a', 'halo');
+  t += 10_000; mm.join('c'); mm.join('d');           // chat kedua tanpa pesan
+  t += 10_000; mm.join('e');                           // antre sendirian
+  const r = mm.endAll('restart');
+  assert.deepEqual(r.users.sort(), ['a', 'b', 'c', 'd']);
+  assert.deepEqual(r.queued, ['e']);
+  assert.equal(ended.length, 1, 'hanya chat berpesan yang dikirim transkripnya');
+  assert.equal(ended[0].reason, 'restart');
+  assert.equal(r.ends.length, 1);
+  assert.equal(mm.sessions.size, 0); assert.equal(mm.queue.size, 0);
+});

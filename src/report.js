@@ -6,7 +6,7 @@ const stamp = (ms) => {
   return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())} UTC`;
 };
 
-const REASONS = { ended: 'Chat diakhiri pengguna', idle: 'Chat berakhir karena sepi', report: 'Dilaporkan pengguna', unreachable: 'Lawan bicara tidak dapat dihubungi' };
+const REASONS = { ended: 'Chat diakhiri pengguna', idle: 'Chat berakhir karena sepi', report: 'Dilaporkan pengguna', unreachable: 'Lawan bicara tidak dapat dihubungi', restart: 'Bot dimatikan/restart', crash: 'Bot mengalami gangguan' };
 
 /**
  * Susun isi berkas .txt transkrip. Media hanya berupa tautan sementara (bot tidak menyimpan berkas).
