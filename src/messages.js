@@ -15,6 +15,14 @@ const L = () => config.limits;
 const menit = (ms) => Math.max(1, Math.round(ms / 60000));
 const detik = (ms) => Math.max(1, Math.ceil(ms / 1000));
 const mb = (bytes) => Math.floor(bytes / 1048576);
+/** Durasi untuk dibaca pemain: "1 hari", "6 jam", atau "30 menit". */
+function lama(ms) {
+  const hari = 24 * 3600_000; const jam = 3600_000;
+  if (ms >= hari && ms % hari === 0) return `${ms / hari} hari`;
+  if (ms >= jam && ms % jam === 0) return `${ms / jam} jam`;
+  return `${menit(ms)} menit`;
+}
+const pengingatAktif = () => L().idleReminderMs > 0 && L().idleReminderMs < L().idleTimeoutMs;
 
 const messages = {
   banned: '⛔ **Akunmu diblokir** dan tidak dapat memakai bot ini.',
@@ -26,7 +34,7 @@ const messages = {
     '',
     'Di bawah setiap pesan dari lawan bicaramu ada tombol **Next** (cari lawan baru), **Stop** (berhenti), dan **Report** (laporkan). Command `/next`, `/stop`, dan `/report` juga bisa dipakai kapan saja.',
     '',
-    `-# Chat berakhir otomatis bila tidak ada pesan selama ${menit(L().idleTimeoutMs)} menit.`,
+    `-# Chat berakhir otomatis bila tidak ada pesan selama ${lama(L().idleTimeoutMs)}.${pengingatAktif() ? ` Selama sepi, bot mengingatkan kamu tiap ${lama(L().idleReminderMs)}.` : ''}`,
   ].join('\n'),
 
   queued: () => [
@@ -67,16 +75,30 @@ const messages = {
   blockedWord: '⚠️ **Pesan ini tidak diteruskan** karena mengandung kata yang diblokir.',
   relayUnreachable: '❌ **Pesanmu tidak sampai** karena lawan bicara tidak dapat dihubungi (mungkin DM-nya tertutup). Chat diakhiri. Ketik `/start` untuk mencari lawan baru.',
 
+  /**
+   * Pengingat sepi, dikirim ke TIAP pemain di DM-nya sendiri dengan mention untuk pemain itu saja.
+   * Tidak boleh me-mention lawan bicara (membuka identitas) dan tidak menyebut siapa yang diam.
+   * @param {string} userId penerima  @param {number} count pengingat ke-berapa (1, 2, ...)
+   */
+  idleReminder: (userId, count) => {
+    const sepi = count * L().idleReminderMs;
+    return [
+      `<@${userId}> 💬 **Chatmu masih terbuka, tetapi belum ada pesan selama ${lama(sepi)}.**`,
+      'Kalau kamu atau lawan bicaramu masih ingin lanjut, kirim saja pesan biasa kapan pun, tidak perlu command. Pesan itu otomatis menghitung ulang waktunya.',
+      `Chat akan berakhir otomatis bila tidak ada pesan sampai ${lama(L().idleTimeoutMs)} (sekitar ${lama(L().idleTimeoutMs - sepi)} lagi). Mau berhenti sekarang? Ketik \`/stop\`.`,
+    ].join('\n');
+  },
+
   /** Dikirim otomatis oleh penjadwal. */
   queueExpired: '⌛ **Belum ada lawan bicara yang cocok**, jadi kamu dikeluarkan dari antrean. Ketik `/start` untuk mencoba lagi.',
-  idleEnded: () => `💤 **Chat berakhir otomatis** karena tidak ada pesan selama ${menit(L().idleTimeoutMs)} menit. Ketik \`/start\` untuk mencari lawan baru.`,
+  idleEnded: () => `💤 **Chat berakhir otomatis** karena tidak ada pesan selama ${lama(L().idleTimeoutMs)}. Ketik \`/start\` untuk mencari lawan baru.`,
 };
 
 /** Ambil pesan; fungsi dipanggil agar angkanya selalu mengikuti config saat ini. */
-function msg(key) {
+function msg(key, ...args) {
   const v = messages[key];
   if (v === undefined) throw new Error(`pesan tidak dikenal: ${key}`);
-  return typeof v === 'function' ? v() : v;
+  return typeof v === 'function' ? v(...args) : v;
 }
 
 module.exports = { msg, messages };

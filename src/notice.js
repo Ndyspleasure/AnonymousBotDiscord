@@ -5,14 +5,15 @@ const {
 const config = require('../config');
 
 /** Pesan info/peringatan bot sebagai kartu Components V2 (menggantikan embed). */
-function notice(text) {
+function notice(text, { pingUserId = null } = {}) {
   const box = new ContainerBuilder()
     .setAccentColor(config.brand.color)
     .addTextDisplayComponents(new TextDisplayBuilder().setContent(String(text).slice(0, 3900)));
   return {
     flags: MessageFlags.IsComponentsV2,
     components: [box],
-    allowedMentions: { parse: [] },
+    // Mention hanya untuk penerima pesan itu sendiri (pengingat sepi). Jangan pernah me-mention lawan bicara: itu membuka identitasnya.
+    allowedMentions: pingUserId ? { parse: [], users: [String(pingUserId)] } : { parse: [] },
   };
 }
 

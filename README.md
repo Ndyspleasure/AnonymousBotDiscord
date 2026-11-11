@@ -8,6 +8,7 @@ Bot chat anonim 1-1 lewat **DM**. Konfigurasi di `config.js`; status chat di mem
 
 ## Cara kerja
 - Semua pesan info/peringatan ke pemain ada di `src/messages.js` (angka seperti lama antrean dan batas ukuran diambil dari `config.limits`) dan `config.js` `texts`. Setiap pesan menjelaskan apa yang terjadi, apakah pemain perlu bertindak, dan pilihan berikutnya.
+- **Sepi:** chat berakhir otomatis bila tidak ada pesan selama 1 hari (`limits.idleTimeoutMs`). Selama sepi, bot mengingatkan **tiap pemain di DM-nya sendiri** tiap 6 jam (`limits.idleReminderMs`; ke-1, ke-2, ke-3 di jam 6, 12, 18), dengan mention untuk pemain itu saja. Bot tidak pernah me-mention lawan bicara di DM pemain lain karena itu membuka identitasnya. Pesan baru dari siapa pun menghitung ulang waktunya. Pengingat tidak disimpan di database: setelah restart, pengingat yang sudah lewat tidak dikirim ulang. Antrean tetap habis dalam 5 menit.
 - `/start` → antrean → dipasangkan acak. Pesan biasa di DM bot diteruskan sebagai kartu Components V2:
 
 ```

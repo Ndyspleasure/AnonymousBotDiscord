@@ -217,10 +217,14 @@ client.once('clientReady', () => {
     .then((r) => console.log(`[commands] ${r === 'updated' ? 'terdaftar ulang' : 'sudah terbaru'}`))
     .catch((e) => console.error('[commands] gagal sinkron:', e.message));
   setInterval(async () => {
-    const { queueExpired, sessionsExpired } = mm.sweep();
+    const { queueExpired, sessionsExpired, remind } = mm.sweep();
     for (const id of queueExpired) await dm(id, notice(say('queueExpired')));
     for (const [a, b] of sessionsExpired) {
       for (const id of [a, b]) await dm(id, notice(say('idleEnded')));
+    }
+    // Pengingat sepi: ke tiap pemain di DM-nya sendiri, mention hanya untuk dirinya (tidak pernah untuk lawan).
+    for (const { users, count } of remind) {
+      for (const id of users) await dm(id, notice(say('idleReminder', id, count), { pingUserId: id }));
     }
   }, 30 * 1000).unref();
 });
