@@ -61,13 +61,13 @@ const config = {
   blockedWords: [],
 
   texts: {
-    dmOnly: '🕶️ **Vanillate Match hanya berfungsi lewat DM**, tidak mendukung server.\nPasang ke akunmu lewat tombol di bawah, lalu buka DM dengan bot dan ketik `/start`.',
+    dmOnly: '🕶️ **Vanillate Match hanya berfungsi lewat DM** dengan bot ini, command tidak bisa dipakai di server atau grup.\nPasang bot ke akunmu lewat tombol di bawah, lalu buka DM dengan bot dan ketik `/start`.',
     resumedNotice: '🔄 **Bot baru saja menyala kembali.** Chat kamu **dilanjutkan**. Pesan yang dikirim selama bot mati mungkin tidak sampai, jadi ulangi bila perlu.',
     restartNotice: '🔄 **Bot sedang restart atau pemeliharaan.** Chat/antrean kamu diakhiri. Tunggu sebentar lalu ketik `/start` untuk mencari lawan bicara lagi.',
     crashNotice: '⚠️ **Bot mengalami gangguan dan akan menyala ulang.** Chat/antrean kamu diakhiri. Tunggu sebentar lalu ketik `/start` untuk mencari lagi.',
     noChat: '💤 **Belum ada chat aktif.** Ketik `/start` untuk mencari lawan bicara, atau `/help` untuk panduan. Kalau chat tadi terputus, kemungkinan bot baru saja restart.',
-    unsupported: 'Silakan kirimkan teks pesan atau media saja.',
-    noCustomEmoji: 'Emoji kustom/eksternal tidak didukung. Silakan kirimkan emoji standar biasa.',
+    unsupported: '⚠️ **Pesan ini tidak diteruskan** karena jenisnya tidak didukung. Yang bisa dikirim: teks, emoji standar, stiker, GIF, foto, dan video. Ketik `/help` untuk rinciannya.',
+    noCustomEmoji: '⚠️ **Pesan ini tidak diteruskan** karena memuat emoji kustom atau eksternal. Pakai emoji standar saja.',
     footer: FOOTER,
 
     welcome: [...WELCOME_BODY, '', 'Baca juga `/rules` dan `/terms`.', '', `-# ${FOOTER}`].join('\n'),

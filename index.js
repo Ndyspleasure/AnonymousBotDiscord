@@ -12,6 +12,7 @@ const { IDS, buildRelay } = require('./src/relay');
 const { resolveGif } = require('./src/gif');
 const { notice, ephemeral, firstUseNotice, installNotice } = require('./src/notice');
 const { Onboarding } = require('./src/onboarding');
+const { msg: say } = require('./src/messages');
 const { PgStore, createPool } = require('./src/store');
 
 const mm = new Matchmaker();
@@ -53,7 +54,7 @@ async function handleCommand(i, sub = i.commandName, arg = null) {
   // Balasan tampil biasa (permanen) seperti informasi.
   const reply = (text) => i.reply(notice(text));
 
-  if (mm.isBanned(id)) return reply('⛔ Kamu tidak dapat menggunakan bot ini.');
+  if (mm.isBanned(id)) return reply(say('banned'));
 
   if (sub === 'help') return reply(config.texts.welcome);
   if (sub === 'rules') return reply(config.texts.rules);
@@ -70,45 +71,42 @@ async function handleCommand(i, sub = i.commandName, arg = null) {
   if (sub === 'start' || sub === 'next') {
     if (sub === 'next') {
       const p = mm.leave(id);
-      await endBoth(id, p, '👋 Lawan bicaramu mengakhiri chat. Ketik `/start` untuk cari lagi.');
+      await endBoth(id, p, say('partnerLeft'));
       mm.cooldowns.delete(id);
     }
     const r = mm.join(id);
-    if (r.status === 'cooldown') return reply('⏳ Tunggu sebentar sebelum mencari lagi.');
-    if (r.status === 'busy') return reply('Kamu sedang dalam chat/antrean. Pakai `/stop` untuk berhenti.');
-    if (r.status === 'queued') {
-      return reply('🔎 Mencari lawan bicara… Kamu akan diberi tahu di DM ini saat cocok.');
-    }
+    if (r.status === 'cooldown') return reply(say('cooldown'));
+    if (r.status === 'busy') return reply(mm.isInSession(id) ? say('busyInChat') : say('busyInQueue'));
+    if (r.status === 'queued') return reply(say('queued'));
     // matched: pasangan diberi tahu lewat DM, kamu lewat balasan ini
-    const matchMsg = '✅ **Terhubung!** Kirim pesan biasa di DM ini. `/next` · `/stop` · `/report`';
+    const matchMsg = say('connected');
     const okPartner = await dm(r.partnerId, notice(matchMsg));
-    if (!okPartner) { mm.leave(id, { reason: 'unreachable' }); return reply('Lawan bicara tidak dapat dihubungi. Coba `/start` lagi.'); }
+    if (!okPartner) { mm.leave(id, { reason: 'unreachable' }); return reply(say('matchUnreachable')); }
     return reply(matchMsg);
   }
 
   if (sub === 'stop') {
     const wasQueued = mm.isQueued(id);
     const p = mm.leave(id);
-    if (!p && !wasQueued) return reply('Kamu tidak sedang dalam chat.');
-    await endBoth(id, p, '👋 Lawan bicaramu mengakhiri chat.');
-    return reply('🛑 Selesai. Ketik `/start` kapan saja.');
+    if (!p && !wasQueued) return reply(say('stopNothing'));
+    await endBoth(id, p, say('partnerLeft'));
+    return reply(p ? say('stoppedChat') : say('stoppedQueue'));
   }
 
   if (sub === 'report') {
     const p = mm.partnerOf(id);
-    if (!p) return reply('Tidak ada chat aktif untuk dilaporkan.');
+    if (!p) return reply(say('reportNothing'));
     let flaggedId = null;
     if (arg != null) {
       const entry = mm.findEntry(id, arg);
-      if (!entry || entry.from !== p) return reply('Pesan ini bukan bagian dari chat yang sedang aktif.');
+      if (!entry || entry.from !== p) return reply(say('reportWrongMessage'));
       flaggedId = entry.id;
     }
     mm.lastEnd = null;
     mm.leave(id, { reporterId: id, flaggedId });
     const ok = (await mm.lastEnd) === true;
-    await endBoth(id, p, '👋 Chat diakhiri.');
-    return reply(ok ? '🚩 Laporan terkirim ke moderator & chat diakhiri. Terima kasih.'
-                    : '🚩 Chat diakhiri. (Kanal laporan belum dikonfigurasi oleh pemilik bot.)');
+    await endBoth(id, p, say('chatEnded'));
+    return reply(ok ? say('reportSent') : say('reportNotSent'));
   }
 }
 
@@ -128,12 +126,12 @@ async function handleDM(msg) {
     await msg.channel.send(notice(config.texts.noChat)).catch(() => {});
     return;
   }
-  const warn = (t) => msg.reply(notice(`⚠️ ${t}`)).catch(() => {});
+  const warn = (t) => msg.reply(notice(t)).catch(() => {});
   const hasText = Boolean(msg.content?.trim());
   const hasMedia = msg.attachments.size > 0;
   const hasSticker = Boolean(msg.stickers?.size);
-  if (!hasText && !hasMedia && !hasSticker) return warn('Pesan kosong.');
-  if (!mm.allowMessage(id)) return warn('⏳ Terlalu cepat, pelan-pelan ya.');
+  if (!hasText && !hasMedia && !hasSticker) return warn(say('empty'));
+  if (!mm.allowMessage(id)) return warn(say('tooFast'));
 
   let text = null;
   if (hasText) {
@@ -147,9 +145,9 @@ async function handleDM(msg) {
   const mediaMeta = [];
   if (hasMedia) {
     const list = [...msg.attachments.values()];
-    if (list.length > config.limits.maxMediaPerMessage) return warn(`Maksimal ${config.limits.maxMediaPerMessage} file per pesan.`);
+    if (list.length > config.limits.maxMediaPerMessage) return warn(say('tooManyFiles'));
     if (list.some((a) => !/^(image|video)\//.test(a.contentType || ''))) return warn(config.texts.unsupported);
-    if (list.some((a) => a.size > config.limits.maxMediaBytes)) return warn(`Ukuran maksimal ${Math.floor(config.limits.maxMediaBytes / 1048576)} MB per file.`);
+    if (list.some((a) => a.size > config.limits.maxMediaBytes)) return warn(say('fileTooBig'));
     list.forEach((a, n) => {
       const ext = (a.name?.match(/\.([a-z0-9]{1,5})$/i)?.[1] || (a.contentType.startsWith('video/') ? 'mp4' : 'png')).toLowerCase();
       const name = `media${n + 1}.${ext}`;
@@ -183,7 +181,7 @@ async function handleDM(msg) {
   let sent = await dm(partner, buildRelay({ text: relayText, files, mediaUrls, entryId: entry.id }));
   // Bila Discord menolak kartu V2 berisi GIF, kirim ulang sebagai pesan klasik dengan tautannya.
   if (!sent && mediaUrls.length) sent = await dm(partner, buildRelay({ text, entryId: entry.id, classic: true }));
-  if (!sent) { mm.leave(id, { reason: 'unreachable' }); return warn('❌ Lawan bicara tidak dapat dihubungi. Chat diakhiri.'); }
+  if (!sent) { mm.leave(id, { reason: 'unreachable' }); return warn(say('relayUnreachable')); }
   msg.react('✅').catch(() => {});
 }
 
@@ -220,9 +218,9 @@ client.once('clientReady', () => {
     .catch((e) => console.error('[commands] gagal sinkron:', e.message));
   setInterval(async () => {
     const { queueExpired, sessionsExpired } = mm.sweep();
-    for (const id of queueExpired) await dm(id, notice('⌛ Belum ada lawan bicara. Coba lagi dengan `/start`.'));
+    for (const id of queueExpired) await dm(id, notice(say('queueExpired')));
     for (const [a, b] of sessionsExpired) {
-      for (const id of [a, b]) await dm(id, notice('💤 Chat berakhir karena sepi.'));
+      for (const id of [a, b]) await dm(id, notice(say('idleEnded')));
     }
   }, 30 * 1000).unref();
 });

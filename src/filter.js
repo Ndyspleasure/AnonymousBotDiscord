@@ -1,5 +1,6 @@
 'use strict';
 const config = require('../config');
+const { msg: say } = require('./messages');
 
 const CUSTOM_EMOJI_RE = /<a?:\w+:\d+>/;
 const INVITE_RE = /(discord\.gg\/|discord(app)?\.com\/invite)/i;
@@ -17,9 +18,9 @@ function urlAllowed(raw) {
 /** Mengembalikan { ok, text, reason }. Teks dinetralkan dari mention. */
 function checkMessage(raw) {
   const text = String(raw || '').trim();
-  if (!text) return { ok: false, reason: 'Pesan kosong.' };
+  if (!text) return { ok: false, reason: say('empty') };
   if (text.length > config.limits.maxMessageLength) {
-    return { ok: false, reason: `Pesan terlalu panjang (maks ${config.limits.maxMessageLength} karakter).` };
+    return { ok: false, reason: say('tooLong') };
   }
   if (CUSTOM_EMOJI_RE.test(text)) return { ok: false, reason: config.texts.noCustomEmoji };
   if (INVITE_RE.test(text)) return { ok: false, reason: config.texts.unsupported };
@@ -29,7 +30,7 @@ function checkMessage(raw) {
   }
   const lower = text.toLowerCase();
   if (config.blockedWords.some((w) => w && lower.includes(w))) {
-    return { ok: false, reason: 'Pesan mengandung kata yang diblokir.' };
+    return { ok: false, reason: say('blockedWord') };
   }
   // netralkan mention (@everyone, <@id>, dst.) agar tidak membocorkan/menyalahgunakan
   const safe = text.replace(/@/g, '@​').replace(/<(#|@|a?:)/g, '<​$1');
