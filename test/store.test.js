@@ -61,6 +61,10 @@ test('chat berakhir: transkrip dikirim lalu baris dihapus dari database', async 
 });
 
 test('keluar antrean dan kedaluwarsa menghapus baris antrean', async () => {
+  const asliAntre = config.limits.queueTimeoutMs; config.limits.queueTimeoutMs = 5 * 60_000; // kedaluwarsa antrean hanya bila dinyalakan
+  try { await keluarAntrean(); } finally { config.limits.queueTimeoutMs = asliAntre; }
+});
+async function keluarAntrean() {
   const { db, store } = await freshStore();
   let t = 1_000_000;
   const mm = new Matchmaker(() => t, store);
@@ -70,7 +74,7 @@ test('keluar antrean dan kedaluwarsa menghapus baris antrean', async () => {
   assert.equal(await count(db, 'anon_queue'), 1);
   t += config.limits.queueTimeoutMs + 1; mm.sweep(); await store.flush();
   assert.equal(await count(db, 'anon_queue'), 0);
-});
+}
 
 test('kegagalan database tidak menjatuhkan Matchmaker', async () => {
   const bad = { query: async () => { throw new Error('db mati'); } };

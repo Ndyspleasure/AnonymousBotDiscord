@@ -29,9 +29,12 @@ test('rate limit pesan', () => {
 });
 
 test('sweep antrean & sesi idle, buffer laporan terbatas', () => {
+  // Antrean bawaan tanpa batas waktu; kedaluwarsa antrean hanya bila dinyalakan lewat config (> 0).
+  const asliAntre = config.limits.queueTimeoutMs; config.limits.queueTimeoutMs = 5 * 60_000;
   let t = 1_000_000; const mm = new Matchmaker(() => t);
   mm.join('a'); t += config.limits.queueTimeoutMs + 1;
   assert.deepEqual(mm.sweep().queueExpired, ['a']);
+  config.limits.queueTimeoutMs = asliAntre;
   t += 10_000; mm.join('a'); mm.join('b');
   for (let i = 0; i < config.limits.transcriptMaxEntries + 5; i++) mm.record('a', 'x' + i);
   assert.equal(mm.sessions.get('b').chat.history.length, config.limits.transcriptMaxEntries);
@@ -160,6 +163,7 @@ test('pengingat sepi: antrean dan chat lain tidak terpengaruh', () => {
   mm.join('c'); // antre sendirian
   clock.t += 6 * H;
   const r = mm.sweep();
-  assert.deepEqual(r.queueExpired, ['c'], 'antrean tetap habis 5 menit');
+  assert.deepEqual(r.queueExpired, [], 'antrean tidak dibatasi waktu');
+  assert.ok(mm.isQueued('c'));
   assert.equal(r.remind.length, 1);
 });

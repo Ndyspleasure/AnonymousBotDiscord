@@ -33,7 +33,8 @@ test('angka di pesan mengikuti config.limits (tidak bisa basi)', () => {
   const L = config.limits;
   assert.ok(msg('connected').includes('1 hari'), 'batas sepi 24 jam ditulis 1 hari');
   assert.ok(msg('connected').includes('tiap 6 jam'), 'pengingat tiap 6 jam');
-  assert.ok(msg('queued').includes(`${Math.round(L.queueTimeoutMs / 60000)} menit`));
+  assert.strictEqual(L.queueTimeoutMs, 0, 'mencari lawan tanpa batas waktu');
+  assert.ok(msg('queued').includes('tanpa batas waktu'));
   assert.ok(msg('cooldown').includes(`${Math.ceil(L.startCooldownMs / 1000)} detik`));
   assert.ok(msg('tooFast').includes(`${L.msgPerWindow} pesan per ${Math.ceil(L.msgWindowMs / 1000)} detik`));
   assert.ok(msg('tooManyFiles').includes(`${L.maxMediaPerMessage} file`));

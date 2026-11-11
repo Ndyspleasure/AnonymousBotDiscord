@@ -13,6 +13,7 @@ const { resolveGif } = require('./src/gif');
 const { notice, ephemeral, firstUseNotice, installNotice } = require('./src/notice');
 const { Onboarding } = require('./src/onboarding');
 const { msg: say } = require('./src/messages');
+const { matchOrQueue } = require('./src/matching');
 const { PgStore, createPool } = require('./src/store');
 
 const mm = new Matchmaker();
@@ -74,14 +75,14 @@ async function handleCommand(i, sub = i.commandName, arg = null) {
       await endBoth(id, p, say('partnerLeft'));
       mm.cooldowns.delete(id);
     }
-    const r = mm.join(id);
+    // matched: pasangan diberi tahu lewat DM, kamu lewat balasan ini. Pasangan yang tak terjangkau
+    // (DM tertutup, akun hilang) dibuang dan langsung dicoba pasangan berikutnya (src/matching.js).
+    const matchMsg = say('connected');
+    const r = await matchOrQueue(mm, id, (partnerId) => dm(partnerId, notice(matchMsg)));
     if (r.status === 'cooldown') return reply(say('cooldown'));
     if (r.status === 'busy') return reply(mm.isInSession(id) ? say('busyInChat') : say('busyInQueue'));
-    if (r.status === 'queued') return reply(say('queued'));
-    // matched: pasangan diberi tahu lewat DM, kamu lewat balasan ini
-    const matchMsg = say('connected');
-    const okPartner = await dm(r.partnerId, notice(matchMsg));
-    if (!okPartner) { mm.leave(id, { reason: 'unreachable' }); return reply(say('matchUnreachable')); }
+    if (r.status === 'queued') return reply(say('queued', { durable: Boolean(mm.store) }));
+    if (r.status === 'failed') return reply(say('matchUnreachable'));
     return reply(matchMsg);
   }
 
@@ -211,6 +212,10 @@ client.once('clientReady', () => {
   // Chat yang dipulihkan dari database: beri tahu bahwa bot baru menyala (pesan saat bot mati tidak terkirim).
   if (resumed.users.length) {
     Promise.allSettled(resumed.users.map((id) => dm(id, notice(config.texts.resumedNotice))));
+  }
+  // Pencarian yang dipulihkan dari database dilanjutkan; beri tahu supaya pemain tidak mengira pencariannya hilang.
+  if (resumed.queued.length) {
+    Promise.allSettled(resumed.queued.map((id) => dm(id, notice(say('resumedQueue')))));
   }
   // Pendaftaran command otomatis (tanpa perlu `node deploy-commands.js` manual).
   syncCommands(client)

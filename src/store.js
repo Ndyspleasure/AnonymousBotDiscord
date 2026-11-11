@@ -112,7 +112,7 @@ class PgStore {
         id, from: h.from_user, text: h.body, media: JSON.parse(h.media || '[]'), at: Number(h.at),
       });
     }
-    const queue = (await this.db.query('SELECT user_id, joined_at FROM anon_queue')).rows
+    const queue = (await this.db.query('SELECT user_id, joined_at FROM anon_queue ORDER BY joined_at, user_id')).rows
       .map((r) => ({ userId: r.user_id, joinedAt: Number(r.joined_at) }));
     const seen = (await this.db.query('SELECT user_id FROM anon_seen')).rows.map((r) => r.user_id);
     return {

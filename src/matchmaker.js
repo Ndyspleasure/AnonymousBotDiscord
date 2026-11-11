@@ -159,7 +159,7 @@ class Matchmaker {
     const t = this.now();
     const queueExpired = [];
     for (const [id, at] of this.queue) {
-      if (t - at > config.limits.queueTimeoutMs) { this.queue.delete(id); this.store?.removeQueue(id); queueExpired.push(id); }
+      if (config.limits.queueTimeoutMs > 0 && t - at > config.limits.queueTimeoutMs) { this.queue.delete(id); this.store?.removeQueue(id); queueExpired.push(id); }
     }
     const sessionsExpired = [];
     const seen = new Set();

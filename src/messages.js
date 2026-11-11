@@ -37,18 +37,28 @@ const messages = {
     `-# Chat berakhir otomatis bila tidak ada pesan selama ${lama(L().idleTimeoutMs)}.${pengingatAktif() ? ` Selama sepi, bot mengingatkan kamu tiap ${lama(L().idleReminderMs)}.` : ''}`,
   ].join('\n'),
 
-  queued: () => [
+  /** @param {{durable?: boolean}} [o] durable: antrean tersimpan di database, jadi selamat dari restart bot. */
+  queued: ({ durable = false } = {}) => [
     '🔎 **Mencari lawan bicara…**',
     'Kamu sudah masuk antrean dan tidak perlu melakukan apa pun. Bot akan mengirim pesan di DM ini begitu ada yang cocok.',
-    `Bila belum ada dalam ${menit(L().queueTimeoutMs)} menit, kamu otomatis keluar dari antrean. Mau batal sekarang? Ketik \`/stop\`.`,
+    L().queueTimeoutMs > 0
+      ? `Bila belum ada dalam ${lama(L().queueTimeoutMs)}, kamu otomatis keluar dari antrean. Mau batal sekarang? Ketik \`/stop\`.`
+      : 'Pencarian berjalan terus tanpa batas waktu sampai ada yang cocok. Mau batal? Ketik `/stop`.',
+    '',
+    durable
+      ? '-# Pencarianmu tersimpan, jadi tidak hilang bila bot restart. Pencarian lanjut begitu bot menyala lagi.'
+      : '-# Bot sedang berjalan tanpa penyimpanan, jadi bila bot restart pencarian bisa terhenti dan kamu perlu mengetik `/start` lagi.',
   ].join('\n'),
+
+  /** Dikirim ke pemain yang antreannya dipulihkan dari database setelah bot menyala lagi. */
+  resumedQueue: '🔄 **Bot baru saja menyala kembali.** Pencarian lawanmu **dilanjutkan**, kamu tidak perlu mengetik `/start` lagi. Bot akan mengirim pesan di DM ini begitu ada yang cocok. Ketik `/stop` untuk batal.',
 
   cooldown: () => `⏳ **Terlalu cepat.** Tunggu ${detik(L().startCooldownMs)} detik, lalu ketik \`/start\` lagi.`,
 
   busyInChat: '💬 **Kamu masih terhubung dengan seseorang.** Kirim pesan biasa untuk ngobrol. Pakai `/next` untuk ganti lawan atau `/stop` untuk berhenti.',
   busyInQueue: '🔎 **Kamu sudah ada di antrean.** Tunggu sampai ada lawan yang cocok, bot akan memberi tahu di DM ini. Ketik `/stop` untuk batal.',
 
-  matchUnreachable: '❌ **Lawan yang cocok tidak bisa dihubungi** (mungkin DM-nya tertutup), jadi pencocokan dibatalkan. Ketik `/start` untuk mencari lagi.',
+  matchUnreachable: '❌ **Pencocokan gagal beberapa kali** karena lawan yang menunggu tidak bisa dihubungi (mungkin DM-nya tertutup). Ketik `/start` untuk mencari lagi.',
 
   stoppedChat: '🛑 **Chat diakhiri.** Ketik `/start` kapan saja untuk mencari lawan bicara baru.',
   stoppedQueue: '🛑 **Kamu keluar dari antrean.** Ketik `/start` kapan saja untuk mencari lagi.',
