@@ -4,7 +4,8 @@
  * Memori tetap sumber utama (cepat, sinkron); penulisan ke database berjalan di latar belakang
  * secara berurutan. Bila database tidak tersedia, bot tetap jalan hanya dengan memori.
  *
- * Yang disimpan: ID pengguna, waktu, riwayat pesan teks, dan tautan media sementara. Baris chat
+ * Yang disimpan: ID pengguna, waktu, riwayat pesan teks, dan tautan media sementara; serta daftar ID
+ * pemain yang sudah melihat kartu sambutan (anon_seen, hanya ID dan waktu). Baris chat
  * dihapus saat chat berakhir (setelah transkrip dikirim ke log moderasi).
  */
 
@@ -29,10 +30,15 @@ const SCHEMA = [
      user_id   TEXT PRIMARY KEY,
      joined_at BIGINT NOT NULL
    )`,
+  `CREATE TABLE IF NOT EXISTS anon_seen (
+     user_id TEXT PRIMARY KEY,
+     at      BIGINT NOT NULL
+   )`,
   // Akses lewat API data publik ditutup; hanya koneksi langsung yang memakai tabel ini.
   'ALTER TABLE anon_chats ENABLE ROW LEVEL SECURITY',
   'ALTER TABLE anon_history ENABLE ROW LEVEL SECURITY',
   'ALTER TABLE anon_queue ENABLE ROW LEVEL SECURITY',
+  'ALTER TABLE anon_seen ENABLE ROW LEVEL SECURITY',
 ];
 
 class PgStore {
@@ -88,6 +94,11 @@ class PgStore {
     return this._enqueue('DELETE FROM anon_queue WHERE user_id = $1', [userId]);
   }
 
+  /** Catat bahwa pemain sudah melihat kartu sambutan (hanya ID dan waktu). */
+  markSeen(userId, at) {
+    return this._enqueue('INSERT INTO anon_seen (user_id, at) VALUES ($1,$2) ON CONFLICT (user_id) DO NOTHING', [userId, at]);
+  }
+
   /** Muat seluruh status untuk dipulihkan ke memori saat bot menyala. */
   async load(maxHistory = 500) {
     const chats = (await this.db.query('SELECT id, user_a, user_b, started_at, last_activity FROM anon_chats')).rows;
@@ -103,9 +114,11 @@ class PgStore {
     }
     const queue = (await this.db.query('SELECT user_id, joined_at FROM anon_queue')).rows
       .map((r) => ({ userId: r.user_id, joinedAt: Number(r.joined_at) }));
+    const seen = (await this.db.query('SELECT user_id FROM anon_seen')).rows.map((r) => r.user_id);
     return {
       maxId,
       queue,
+      seen,
       chats: chats.map((c) => ({
         id: c.id,
         users: [c.user_a, c.user_b],

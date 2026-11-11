@@ -5,7 +5,7 @@ const {
 } = require('discord.js');
 const config = require('../config');
 
-const IDS = Object.freeze({ NEXT: 'anon:next', STOP: 'anon:stop', REPORT: 'anon:report:' });
+const IDS = Object.freeze({ NEXT: 'anon:next', STOP: 'anon:stop', REPORT: 'anon:report:', GO: 'anon:go' });
 
 function actionRow(entryId, hasMedia) {
   return new ActionRowBuilder().addComponents(

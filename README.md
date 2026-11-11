@@ -4,7 +4,7 @@ Bot chat anonim 1-1 lewat **DM**. Konfigurasi di `config.js`; status chat di mem
 
 ## Alur dua bot
 1. **Vanillate.ID** (Social Hub) hanya jadi jembatan: menampilkan tombol link instal Vanillate Match. Tidak menyimpan apa pun.
-2. **Vanillate Match** menangani seluruh chat. Pemain memulai dengan `/start` di DM bot; panduan lengkap muncul lewat `/help`.
+2. **Vanillate Match** menangani seluruh chat. Discord tidak mengirim event saat bot dipasang lewat User Install, jadi tidak ada pesan otomatis saat pemasangan. Sambutan muncul saat pemain **pertama kali** memakai `/start` (atau `/next`) atau mengirim pesan di DM bot: kartu panduan + peraturan dengan tombol **Mengerti, mulai cari lawan** (sama artinya dengan `/start`), dan pemain belum dimasukkan ke antrean sebelum itu. Setelah itu panduan tetap bisa dibuka lewat `/help`, `/rules`, `/terms`.
 
 ## Cara kerja
 - `/start` → antrean → dipasangkan acak. Pesan biasa di DM bot diteruskan sebagai kartu Components V2:
@@ -25,7 +25,7 @@ Stranger:
 | `/help` · `/rules` · `/terms` | Panduan, peraturan, syarat dan ketentuan |
 
 - Tombol **Next / Stop / Report** ada di setiap pesan. Pada pesan berisi media, tombolnya **Laporkan pesan ini**; pesan itu ditandai `>>> DILAPORKAN >>>` di berkas laporan.
-- Boleh dikirim: teks, emoji standar, stiker (PNG/APNG), GIF, foto, dan video (maks 4 file, 8 MB). Stiker animasi (Lottie), emoji kustom/eksternal, file lain, dan tautan non-GIF ditolak dengan info singkat ("Silakan kirimkan teks pesan atau media saja" / "kirimkan emoji standar biasa"). Mention dinetralkan, ada rate limit.
+- Boleh dikirim: teks (maks 1000 karakter), emoji standar, stiker (PNG/APNG/GIF), GIF, foto, dan video (maks 4 file, 8 MB). Stiker animasi (Lottie), emoji kustom/eksternal, undangan server, pesan suara dan file lain, serta tautan selain GIF (Tenor, Giphy) dan berkas media Discord ditolak dengan info singkat ("Silakan kirimkan teks pesan atau media saja" / "kirimkan emoji standar biasa"). Mention dinetralkan, ada rate limit.
 - GIF dari menu GIF Discord (Tenor/Giphy/CDN Discord) tampil di dalam kartu V2. Bila media tautannya tidak bisa diselesaikan, bot memakai pesan klasik berisi tautan supaya tetap tampil sebagai GIF.
 - Tombol Report hanya bekerja untuk pesan dari chat yang masih aktif.
 - **Transkrip**: setiap chat yang berakhir (Stop, Next, Report, sepi, atau lawan tak dapat dihubungi) dikirim sebagai berkas `.txt` ke `LOG_WEBHOOK_URL`; laporan ke `REPORT_WEBHOOK_URL` (cadangan: `LOG_WEBHOOK_URL`) dengan pesan yang dilaporkan ditandai. Riwayat chat disimpan di memori (maks 500 pesan) dan, bila `DATABASE_URL` diisi, di PostgreSQL selama chat berlangsung; saat bot dimatikan/restart normal (SIGTERM/SIGINT) atau crash yang tertangkap, semua pengguna yang sedang chat/antre diberi tahu dan transkrip chat yang berjalan tetap dikirim. Mati paksa (SIGKILL, kehabisan memori, listrik padam) tidak bisa ditangani: chat putus tanpa pemberitahuan dan tanpa transkrip; pesan berikutnya dari pengguna dijawab bahwa tidak ada chat aktif dan bot mungkin baru restart. Berkas memuat ID akun dan tautan media sementara; bot tidak menyimpan berkas media. Pengguna diberi tahu di `/help` dan `/terms`. Tidak ada gerbang usia: foto/video seksual eksplisit dilarang di `/rules` dan ditangani lewat laporan.
@@ -40,10 +40,12 @@ npm run deploy         # daftar slash command global
 npm start
 npm test
 ```
+Nama aplikasi, avatar, dan deskripsi bot (**Vanillate Match**) diatur di Developer Portal → General Information; itu tidak bisa diubah dari kode.
+
 Developer Portal → Installation: aktifkan **hanya User Install** (matikan Guild Install). Link instal: `https://discord.com/oauth2/authorize?client_id=<CLIENT_ID>&integration_type=1&scope=applications.commands` (dipakai tombol di Vanillate.ID).
 
 ## Penyimpanan (PostgreSQL, opsional tapi disarankan)
-Tanpa `DATABASE_URL`, bot hanya memakai memori: chat putus bila bot restart. Dengan `DATABASE_URL` (mis. Aiven PostgreSQL), status chat disimpan di tabel `anon_chats`, `anon_history`, `anon_queue` (dibuat otomatis) dan **dipulihkan saat bot menyala**: chat dilanjutkan, pengguna diberi tahu "Bot baru saja menyala kembali", tombol Report lama tetap valid. Baris chat dihapus setelah chat berakhir dan transkrip terkirim ke log moderasi.
+Tanpa `DATABASE_URL`, bot hanya memakai memori: chat putus bila bot restart. Dengan `DATABASE_URL` (mis. Aiven PostgreSQL), status chat disimpan di tabel `anon_chats`, `anon_history`, `anon_queue` (dibuat otomatis), serta `anon_seen` (hanya ID pemain yang sudah melihat kartu sambutan, supaya tidak muncul lagi setelah restart; tanpa database kartu itu muncul sekali lagi setelah restart) dan **dipulihkan saat bot menyala**: chat dilanjutkan, pengguna diberi tahu "Bot baru saja menyala kembali", tombol Report lama tetap valid. Baris chat dihapus setelah chat berakhir dan transkrip terkirim ke log moderasi.
 
 - Memori tetap sumber utama, penulisan database berjalan di latar belakang berurutan. Bila database tidak terjangkau, bot tetap jalan (hanya memori) dan mencatat error; saat dimatikan tanpa database, pengguna diberi tahu chatnya diakhiri.
 - Pesan yang dikirim **saat bot mati** tetap tidak sampai (Discord tidak mengirim ulang).

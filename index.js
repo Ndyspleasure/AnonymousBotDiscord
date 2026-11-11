@@ -10,10 +10,12 @@ const { syncCommands } = require('./src/registerCommands');
 const { sendTranscriptFile } = require('./src/report');
 const { IDS, buildRelay } = require('./src/relay');
 const { resolveGif } = require('./src/gif');
-const { notice, ephemeral, installNotice } = require('./src/notice');
+const { notice, ephemeral, firstUseNotice, installNotice } = require('./src/notice');
+const { Onboarding } = require('./src/onboarding');
 const { PgStore, createPool } = require('./src/store');
 
 const mm = new Matchmaker();
+const onboarding = new Onboarding();
 // Transkrip dikirim ke log moderasi setiap chat berakhir. Laporan memakai REPORT_WEBHOOK_URL
 // (cadangan: LOG_WEBHOOK_URL). Tanpa webhook, tidak ada yang dikirim.
 mm.onEnd = (info) => sendTranscriptFile(
@@ -56,6 +58,14 @@ async function handleCommand(i, sub = i.commandName, arg = null) {
   if (sub === 'help') return reply(config.texts.welcome);
   if (sub === 'rules') return reply(config.texts.rules);
   if (sub === 'terms') return reply(config.texts.terms);
+
+  // Pemain baru: panduan + peraturan ditampilkan dulu, belum masuk antrean (src/onboarding.js).
+  // Tombolnya (anon:go) menjalankan /start. Ditandai setelah kartu terkirim.
+  if ((sub === 'start' || sub === 'next') && onboarding.needsFirstUse(id, mm)) {
+    const sent = await i.reply(firstUseNotice());
+    onboarding.mark(id);
+    return sent;
+  }
 
   if (sub === 'start' || sub === 'next') {
     if (sub === 'next') {
@@ -108,7 +118,14 @@ async function handleDM(msg) {
   const partner = mm.partnerOf(id);
   if (!partner) {
     // Tanpa chat aktif. Setelah bot restart semua orang tampak "baru", jadi jelaskan kemungkinannya.
-    if (!mm.isQueued(id)) await msg.channel.send(notice(config.texts.noChat)).catch(() => {});
+    if (mm.isQueued(id)) return;
+    if (onboarding.needsFirstUse(id, mm)) {
+      // Pemain baru yang langsung mengetik pesan: beri panduan + peraturan, bukan pesan "chat terputus".
+      const ok = await msg.channel.send(firstUseNotice()).then(() => true, () => false);
+      if (ok) onboarding.mark(id);
+      return;
+    }
+    await msg.channel.send(notice(config.texts.noChat)).catch(() => {});
     return;
   }
   const warn = (t) => msg.reply(notice(`⚠️ ${t}`)).catch(() => {});
@@ -176,6 +193,7 @@ client.on('interactionCreate', (i) => {
     let arg = null;
     if (i.customId === IDS.NEXT) action = 'next';
     else if (i.customId === IDS.STOP) action = 'stop';
+    else if (i.customId === IDS.GO) action = 'start';
     else if (i.customId.startsWith(IDS.REPORT)) { action = 'report'; arg = Number(i.customId.slice(IDS.REPORT.length)); }
     if (action) handleCommand(i, action, arg).catch((e) => console.error(`[btn:${action}]`, e));
     return;
@@ -243,6 +261,8 @@ async function setupStore() {
     await store.init();
     const state = await store.load(config.limits.transcriptMaxEntries);
     mm.store = store;
+    onboarding.store = store;
+    onboarding.restore(state.seen);
     resumed = mm.restore(state);
     console.log(`[store] terhubung. Dipulihkan: ${state.chats.length} chat, ${state.queue.length} antre.`);
   } catch (e) {
