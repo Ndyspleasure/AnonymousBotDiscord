@@ -21,6 +21,18 @@ function ephemeral(payload) {
   return { ...payload, flags: payload.flags | MessageFlags.Ephemeral };
 }
 
+/** Kartu sambutan pemain baru: panduan + peraturan, dengan tombol yang sama artinya dengan /start. */
+function firstUseNotice() {
+  const { IDS } = require('./relay');
+  const box = new ContainerBuilder()
+    .setAccentColor(config.brand.color)
+    .addTextDisplayComponents(new TextDisplayBuilder().setContent(config.texts.firstUse.slice(0, 3900)))
+    .addActionRowComponents(new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId(IDS.GO).setStyle(ButtonStyle.Success).setLabel('Mengerti, mulai cari lawan').setEmoji('▶️'),
+    ));
+  return { flags: MessageFlags.IsComponentsV2, components: [box], allowedMentions: { parse: [] } };
+}
+
 /** Link User Install (dipakai di DM, tanpa server). */
 const installUrl = (clientId) =>
   `https://discord.com/oauth2/authorize?client_id=${clientId}&integration_type=1&scope=applications.commands`;
@@ -36,4 +48,4 @@ function installNotice(clientId) {
   return { flags: MessageFlags.IsComponentsV2, components: [box], allowedMentions: { parse: [] } };
 }
 
-module.exports = { notice, ephemeral, installNotice, installUrl };
+module.exports = { notice, ephemeral, firstUseNotice, installNotice, installUrl };

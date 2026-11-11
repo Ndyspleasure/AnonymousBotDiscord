@@ -1,5 +1,5 @@
 {
-  "name": "anonymous-bot-discord",
+  "name": "vanillate-match",
   "version": "0.1.0",
   "description": "Bot chat anonim 1-1 lewat DM, tanpa database (semua data di kode / memori).",
   "main": "index.js",
