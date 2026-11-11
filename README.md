@@ -7,6 +7,7 @@ Bot chat anonim 1-1 lewat **DM**. Konfigurasi di `config.js`; status chat di mem
 2. **Vanillate Match** menangani seluruh chat. Discord tidak mengirim event saat bot dipasang lewat User Install, jadi tidak ada pesan otomatis saat pemasangan. Sambutan muncul saat pemain **pertama kali** memakai `/start` (atau `/next`) atau mengirim pesan di DM bot: kartu panduan + peraturan dengan tombol **Mengerti, mulai cari lawan** (sama artinya dengan `/start`), dan pemain belum dimasukkan ke antrean sebelum itu. Setelah itu panduan tetap bisa dibuka lewat `/help`, `/rules`, `/terms`.
 
 ## Cara kerja
+- Semua pesan info/peringatan ke pemain ada di `src/messages.js` (angka seperti lama antrean dan batas ukuran diambil dari `config.limits`) dan `config.js` `texts`. Setiap pesan menjelaskan apa yang terjadi, apakah pemain perlu bertindak, dan pilihan berikutnya.
 - `/start` → antrean → dipasangkan acak. Pesan biasa di DM bot diteruskan sebagai kartu Components V2:
 
 ```
@@ -25,7 +26,7 @@ Stranger:
 | `/help` · `/rules` · `/terms` | Panduan, peraturan, syarat dan ketentuan |
 
 - Tombol **Next / Stop / Report** ada di setiap pesan. Pada pesan berisi media, tombolnya **Laporkan pesan ini**; pesan itu ditandai `>>> DILAPORKAN >>>` di berkas laporan.
-- Boleh dikirim: teks (maks 1000 karakter), emoji standar, stiker (PNG/APNG/GIF), GIF, foto, dan video (maks 4 file, 8 MB). Stiker animasi (Lottie), emoji kustom/eksternal, undangan server, pesan suara dan file lain, serta tautan selain GIF (Tenor, Giphy) dan berkas media Discord ditolak dengan info singkat ("Silakan kirimkan teks pesan atau media saja" / "kirimkan emoji standar biasa"). Mention dinetralkan, ada rate limit.
+- Boleh dikirim: teks (maks 1000 karakter), emoji standar, stiker (PNG/APNG/GIF), GIF, foto, dan video (maks 4 file, 8 MB). Stiker animasi (Lottie), emoji kustom/eksternal, undangan server, pesan suara dan file lain, serta tautan selain GIF (Tenor, Giphy) dan berkas media Discord ditolak dengan info bahwa pesan itu tidak diteruskan beserta alasannya. Mention dinetralkan, ada rate limit (maks 8 pesan per 10 detik).
 - GIF dari menu GIF Discord (Tenor/Giphy/CDN Discord) tampil di dalam kartu V2. Bila media tautannya tidak bisa diselesaikan, bot memakai pesan klasik berisi tautan supaya tetap tampil sebagai GIF.
 - Tombol Report hanya bekerja untuk pesan dari chat yang masih aktif.
 - **Transkrip**: setiap chat yang berakhir (Stop, Next, Report, sepi, atau lawan tak dapat dihubungi) dikirim sebagai berkas `.txt` ke `LOG_WEBHOOK_URL`; laporan ke `REPORT_WEBHOOK_URL` (cadangan: `LOG_WEBHOOK_URL`) dengan pesan yang dilaporkan ditandai. Riwayat chat disimpan di memori (maks 500 pesan) dan, bila `DATABASE_URL` diisi, di PostgreSQL selama chat berlangsung; saat bot dimatikan/restart normal (SIGTERM/SIGINT) atau crash yang tertangkap, semua pengguna yang sedang chat/antre diberi tahu dan transkrip chat yang berjalan tetap dikirim. Mati paksa (SIGKILL, kehabisan memori, listrik padam) tidak bisa ditangani: chat putus tanpa pemberitahuan dan tanpa transkrip; pesan berikutnya dari pengguna dijawab bahwa tidak ada chat aktif dan bot mungkin baru restart. Berkas memuat ID akun dan tautan media sementara; bot tidak menyimpan berkas media. Pengguna diberi tahu di `/help` dan `/terms`. Tidak ada gerbang usia: foto/video seksual eksplisit dilarang di `/rules` dan ditangani lewat laporan.
