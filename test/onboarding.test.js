@@ -97,3 +97,8 @@ test('klaim "boleh dikirim" benar: teks, emoji standar, GIF Tenor/Giphy', () => 
   assert.equal(checkMessage('https://giphy.com/gifs/x').ok, true);
   assert.equal(checkMessage('x'.repeat(config.limits.maxMessageLength)).ok, true);
 });
+
+test('syarat dan ketentuan menyebut catatan penanda panduan (anon_seen) yang tidak dihapus', () => {
+  const pasal = config.texts.terms.split('\n').find((l) => l.startsWith('**3.'));
+  assert.ok(pasal.includes('pertama kali melihat panduan') && pasal.includes('tidak dihapus'));
+});
