@@ -2,7 +2,7 @@
 const FOOTER = 'Patuhi syarat dan ketentuan kami, pelanggar dapat dikenakan sanksi banned permanen';
 // Konfigurasi dan teks bot ada di sini. Status chat disimpan di memori dan (opsional) PostgreSQL, lihat src/store.js. Ubah lalu deploy ulang.
 module.exports = {
-  brand: { name: 'Anonymous Bot', color: 0x5865f2, hubName: 'Vanillate.ID' },
+  brand: { name: 'Vanillate Match', color: 0x5865f2, hubName: 'Vanillate.ID' },
 
   limits: {
     queueTimeoutMs: 5 * 60 * 1000,     // keluar antrean otomatis
@@ -26,7 +26,7 @@ module.exports = {
   blockedWords: [],
 
   texts: {
-    dmOnly: '🕶️ **Anonymous Bot hanya berfungsi lewat DM**, tidak mendukung server.\nPasang ke akunmu lewat tombol di bawah, lalu buka DM dengan bot dan ketik `/start`.',
+    dmOnly: '🕶️ **Vanillate Match hanya berfungsi lewat DM**, tidak mendukung server.\nPasang ke akunmu lewat tombol di bawah, lalu buka DM dengan bot dan ketik `/start`.',
     resumedNotice: '🔄 **Bot baru saja menyala kembali.** Chat kamu **dilanjutkan**. Pesan yang dikirim selama bot mati mungkin tidak sampai, jadi ulangi bila perlu.',
     restartNotice: '🔄 **Bot sedang restart atau pemeliharaan.** Chat/antrean kamu diakhiri. Tunggu sebentar lalu ketik `/start` untuk mencari lawan bicara lagi.',
     crashNotice: '⚠️ **Bot mengalami gangguan dan akan menyala ulang.** Chat/antrean kamu diakhiri. Tunggu sebentar lalu ketik `/start` untuk mencari lagi.',
@@ -36,7 +36,7 @@ module.exports = {
     footer: FOOTER,
 
     welcome: [
-      '👋 **Selamat datang di Anonymous Bot!**',
+      '👋 **Selamat datang di Vanillate Match!**',
       '',
       'Ngobrol 1-1 dengan orang acak, identitas kalian **tidak** ditampilkan.',
       '',
@@ -45,7 +45,8 @@ module.exports = {
       '2. Setelah cocok, **kirim pesan biasa di DM ini** dan bot meneruskannya.',
       '3. Tiap pesan punya tombol **Next** (cari lawan baru), **Stop** (berhenti), dan **Report** (laporkan pesan itu).',
       '',
-      '**Boleh dikirim**: teks, emoji standar, stiker, GIF, foto, dan video.',
+      '**Boleh dikirim**: teks (maks 1000 karakter), emoji standar, stiker, GIF dari menu GIF Discord, foto, dan video (maks 4 file per pesan, 8 MB per file).',
+      '**Tidak bisa dikirim**: tautan selain GIF, undangan server, emoji kustom/eksternal, stiker animasi (Lottie), pesan suara, dan file lain.',
       '',
       'Baca juga `/rules` dan `/terms`.',
       '',
@@ -53,7 +54,7 @@ module.exports = {
     ].join('\n'),
 
     rules: [
-      '📜 **Peraturan Anonymous Bot**',
+      '📜 **Peraturan Vanillate Match**',
       '',
       '1. Bersikap sopan. Dilarang melecehkan, mengancam, atau menghina.',
       '2. Dilarang konten SARA, ujaran kebencian, dan kekerasan.',

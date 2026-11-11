@@ -1,10 +1,10 @@
-# Anonymous Bot Discord
+# Vanillate Match (Anonymous Chat)
 
 Bot chat anonim 1-1 lewat **DM**. Konfigurasi di `config.js`; status chat di memori dan (opsional) di PostgreSQL.
 
 ## Alur dua bot
-1. **Vanillate.ID** (Social Hub) hanya jadi jembatan: menampilkan tombol link instal Anonymous Bot. Tidak menyimpan apa pun.
-2. **Anonymous Bot** menangani onboarding (panduan di DM) dan seluruh chat.
+1. **Vanillate.ID** (Social Hub) hanya jadi jembatan: menampilkan tombol link instal Vanillate Match. Tidak menyimpan apa pun.
+2. **Vanillate Match** menangani seluruh chat. Pemain memulai dengan `/start` di DM bot; panduan lengkap muncul lewat `/help`.
 
 ## Cara kerja
 - `/start` → antrean → dipasangkan acak. Pesan biasa di DM bot diteruskan sebagai kartu Components V2:
