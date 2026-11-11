@@ -40,8 +40,9 @@ const config = {
   brand: { name: 'Vanillate Match', color: 0x5865f2, hubName: 'Vanillate.ID' },
 
   limits: {
-    queueTimeoutMs: 5 * 60 * 1000,     // keluar antrean otomatis
-    idleTimeoutMs: 30 * 60 * 1000,     // sesi diakhiri bila sepi
+    queueTimeoutMs: 0,                 // 0 = mencari lawan tanpa batas waktu (sampai cocok atau /stop); > 0 = keluar antrean otomatis setelah selang ini
+    idleTimeoutMs: 24 * 60 * 60 * 1000, // sesi diakhiri bila tidak ada pesan selama ini (1 hari)
+    idleReminderMs: 6 * 60 * 60 * 1000, // pengingat ke tiap pemain tiap selang ini selama sepi (0 = mati); harus lebih kecil dari idleTimeoutMs
     startCooldownMs: 5 * 1000,         // jeda antar /start
     msgPerWindow: 8,                   // maks pesan ...
     msgWindowMs: 10 * 1000,            // ... per jendela waktu ini

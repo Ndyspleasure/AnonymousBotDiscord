@@ -45,7 +45,7 @@ class Matchmaker {
 
   _pair(a, b) {
     const t = this.now();
-    const chat = { id: randomUUID(), users: [a, b], startedAt: t, lastActivity: t, history: [] };
+    const chat = { id: randomUUID(), users: [a, b], startedAt: t, lastActivity: t, reminded: 0, history: [] };
     this.sessions.set(a, { partnerId: b, chat });
     this.sessions.set(b, { partnerId: a, chat });
     this.store?.removeQueue(b); // b = pengguna yang tadi menunggu di antrean
@@ -108,6 +108,7 @@ class Matchmaker {
     if (!s) return null;
     const { chat } = s;
     chat.lastActivity = this.now();
+    chat.reminded = 0; // ada aktivitas: hitung pengingat sepi dari awal
     const entry = { id: ++this.seq, from: id, text, media, at: chat.lastActivity };
     chat.history.push(entry);
     if (chat.history.length > config.limits.transcriptMaxEntries) chat.history.shift();
@@ -126,7 +127,9 @@ class Matchmaker {
    */
   restore({ chats = [], queue = [], maxId = 0 } = {}) {
     for (const c of chats) {
-      const chat = { id: c.id, users: c.users, startedAt: c.startedAt, lastActivity: c.lastActivity, history: c.history || [] };
+      const chat = { id: c.id, users: c.users, startedAt: c.startedAt, lastActivity: c.lastActivity, reminded: 0, history: c.history || [] };
+      // Pengingat tidak disimpan di database: anggap yang sudah lewat sebelum restart sudah terkirim, supaya tidak dobel.
+      chat.reminded = this._remindersDue(this.now() - c.lastActivity);
       this.sessions.set(c.users[0], { partnerId: c.users[1], chat });
       this.sessions.set(c.users[1], { partnerId: c.users[0], chat });
     }
@@ -135,12 +138,28 @@ class Matchmaker {
     return { users: chats.flatMap((c) => c.users), queued: queue.map((q) => q.userId) };
   }
 
-  /** Bersihkan antrean/sesi kedaluwarsa. Mengembalikan { queueExpired[], sessionsExpired[[a,b]] }. */
+  /**
+   * Berapa pengingat sepi yang seharusnya sudah terkirim setelah `idleMs` tanpa pesan.
+   * Pengingat ke-k jatuh di k × idleReminderMs; yang jatuh tepat di batas idleTimeoutMs tidak
+   * dikirim karena chat berakhir saat itu. 0 bila pengingat dimatikan atau tidak masuk akal.
+   */
+  _remindersDue(idleMs) {
+    const { idleReminderMs: every, idleTimeoutMs: limit } = config.limits;
+    if (!(every > 0) || every >= limit) return 0;
+    const maxReminders = Math.ceil(limit / every) - 1;
+    return Math.max(0, Math.min(Math.floor(idleMs / every), maxReminders));
+  }
+
+  /**
+   * Bersihkan antrean/sesi kedaluwarsa dan tentukan pengingat sepi.
+   * @returns {{queueExpired:string[], sessionsExpired:string[][], remind:{users:string[], count:number}[]}}
+   *   `remind`: chat yang belum kedaluwarsa dan perlu diingatkan sekarang; `count` = pengingat ke-berapa.
+   */
   sweep() {
     const t = this.now();
     const queueExpired = [];
     for (const [id, at] of this.queue) {
-      if (t - at > config.limits.queueTimeoutMs) { this.queue.delete(id); this.store?.removeQueue(id); queueExpired.push(id); }
+      if (config.limits.queueTimeoutMs > 0 && t - at > config.limits.queueTimeoutMs) { this.queue.delete(id); this.store?.removeQueue(id); queueExpired.push(id); }
     }
     const sessionsExpired = [];
     const seen = new Set();
@@ -150,10 +169,18 @@ class Matchmaker {
       if (t - s.chat.lastActivity > config.limits.idleTimeoutMs) sessionsExpired.push(s.chat);
     }
     for (const chat of sessionsExpired) this._finish(chat, 'idle');
+    const remind = [];
+    const done = new Set();
+    for (const [, s] of this.sessions) {
+      if (done.has(s.chat)) continue;
+      done.add(s.chat);
+      const due = this._remindersDue(t - s.chat.lastActivity);
+      if (due > (s.chat.reminded ?? 0)) { s.chat.reminded = due; remind.push({ users: s.chat.users, count: due }); }
+    }
     for (const [id, last] of this.cooldowns) {
       if (t - last > 60 * 1000) this.cooldowns.delete(id);
     }
-    return { queueExpired, sessionsExpired: sessionsExpired.map((c) => c.users) };
+    return { queueExpired, sessionsExpired: sessionsExpired.map((c) => c.users), remind };
   }
 }
 
